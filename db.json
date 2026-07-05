@@ -1,0 +1,2788 @@
+{
+  "users": [
+    {
+      "uid": "admin-1",
+      "email": "admin@psgroup.in",
+      "passwordHash": "99efc65a4cd680d9d546711aa388dcf0df952ae7ce80c5d6b50cbb8eeaa241dab4a9b8504b2aea75b4380758a2eb21aef54f3dfb64f2d3d56b78c4ca96f9d67d",
+      "name": "PS Group Admin",
+      "role": "Admin",
+      "isApproved": true,
+      "createdAt": "2026-07-05T10:02:28.336Z"
+    },
+    {
+      "uid": "user-1",
+      "email": "user@psgroup.in",
+      "passwordHash": "de8ca3f2141c30c3739b512c96ca9abef1238a495019d812121ee4963bf2faa05c3357a28278b6db5d9ddc08fbaf85f7a503cd58f8b385d4bb2ce39db1030ddd",
+      "name": "Supratik Bagchi",
+      "role": "User",
+      "isApproved": true,
+      "createdAt": "2026-07-05T10:02:28.336Z"
+    },
+    {
+      "uid": "user-pending",
+      "email": "pending@psgroup.in",
+      "passwordHash": "de8ca3f2141c30c3739b512c96ca9abef1238a495019d812121ee4963bf2faa05c3357a28278b6db5d9ddc08fbaf85f7a503cd58f8b385d4bb2ce39db1030ddd",
+      "name": "John Doe",
+      "role": "User",
+      "isApproved": false,
+      "createdAt": "2026-07-05T10:02:28.337Z"
+    }
+  ],
+  "rooms": [
+    {
+      "roomId": "room-1",
+      "name": "Boardroom Alpha",
+      "capacity": 12,
+      "features": [
+        "Projector",
+        "Video Conferencing",
+        "Whiteboard",
+        "AC"
+      ]
+    },
+    {
+      "roomId": "room-2",
+      "name": "Collaboration Hub",
+      "capacity": 8,
+      "features": [
+        "Smart TV",
+        "Whiteboard",
+        "Glass Wall"
+      ]
+    },
+    {
+      "roomId": "room-3",
+      "name": "Focus Pod A",
+      "capacity": 4,
+      "features": [
+        "High-speed Wi-Fi",
+        "Whiteboard"
+      ]
+    },
+    {
+      "roomId": "room-4",
+      "name": "Executive Conference Room",
+      "capacity": 15,
+      "features": [
+        "4K TV",
+        "Conference Phone",
+        "Whiteboard",
+        "Catering Desk"
+      ]
+    }
+  ],
+  "bookings": [],
+  "notifications": [
+    {
+      "notificationId": "notif-10034adb-04ce-48c0-b3e6-f5468b100495",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:45:18.470Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-853e3678-2d8e-46e4-83b1-e4408f30f607",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:45:18.467Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-7748a9d6-a3cf-46f5-bccf-339f97798ba3",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:43:18.468Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-7da705d3-ecbb-4539-81b7-613c21cab7a2",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:43:18.466Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-8e7a6d3c-500f-4a77-93ea-0ca503234c8e",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:41:18.467Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-8dc3d0da-f6aa-4d58-97c1-ced7d6536649",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:41:18.465Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-65d0d49d-b4cb-4127-84de-6aaa8d8480cf",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:39:18.469Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-87136caf-7826-4968-9f21-4ff11d2c2bd7",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:39:18.466Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-56a76b58-25b8-4ee3-9522-9cb0419b4497",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:37:18.467Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-5bf07260-871d-40dd-ac32-a66b280bdc6c",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:37:18.463Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-788d8786-de98-4153-80f4-d06c84976029",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:35:18.463Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-dbc9c1b3-7584-412d-8bbd-c5326f0b776d",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:35:18.461Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-cc61a0fa-8914-4560-8082-5152c3148add",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:33:18.464Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-d446f8b3-37a9-4f69-956a-616d32f96b38",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:33:18.462Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-8963de18-d002-4511-bc6e-536db9336064",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:31:18.463Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-d769c52c-3d40-4e8b-980f-55f111e013b4",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:31:18.460Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-112781aa-84c5-479c-921c-ae46c789005c",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:29:18.460Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-1794f638-7b41-4b78-bc26-701d24d08d44",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:29:18.459Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-19f75eb0-76f2-422e-b91b-c869b92472a0",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:27:18.459Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-d689a94a-6edf-4dfc-8045-6f9ae613e334",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:27:18.457Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-783f3b20-7173-42e8-a4bd-11a3968757dd",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:25:18.458Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-5d23c26e-981b-4b73-9248-7c30a5fae180",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:25:18.456Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-1486cfa1-06c6-408d-ad13-4d8fb43c0298",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:23:18.457Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-372b3225-8aa1-4b23-afd5-e28220564117",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:23:18.456Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-679ee2b4-d712-47b8-94a7-0ab3d517fb92",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:21:18.456Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-0ebf4fd1-6c63-4ec1-9f62-9dd486e659e1",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:21:18.454Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-fe9e210e-e900-4dd1-91bc-44ce55d1fd2d",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:19:18.455Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-4633f7ae-c048-42f4-8f1c-e48ada06a608",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:19:18.453Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-b4391bdf-8c22-4563-9945-afc2e3b07fb9",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:17:18.454Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-2024e671-8a45-45ec-9871-6084f2554480",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:17:18.452Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-ea24cb99-421b-43fe-b8ce-272d4c69cfa0",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:15:18.452Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-179aa63a-a286-446c-8d35-f950caf4f80d",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:15:18.450Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-85230861-5303-44fc-93dd-d8e3e1f4dc0f",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:13:18.451Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-31361623-d00e-4670-a66e-9bc4a62e7e6d",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:13:18.450Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-2614a91a-27c6-473e-b980-c37fb977531f",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:11:18.451Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-e35bcc77-9b2a-41bc-8812-866416f294dc",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:11:18.448Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-5f694d67-0dc6-4d33-b97c-ed28cb323253",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:09:18.449Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-3e82c7f0-cdc3-44a9-8527-55bead6e8791",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:09:18.447Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-14a14f5e-b9af-4205-a7fd-a46cd951e526",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:07:18.449Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-630e9e2a-969f-4905-ae83-c8e5dd44e364",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:07:18.447Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-77d5bfa6-c6ec-475d-8cd6-87cff486a269",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:05:18.446Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-6c2c2e9f-1582-4ae6-bd4a-87bc374da787",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:05:18.445Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-7cc688e0-ea29-4f99-aee5-fae2f78a54a3",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:03:18.445Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-c7de2fd9-6852-461f-afc5-61ebe686080e",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:03:18.443Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-70b93e8a-9294-430b-8fc9-2d721126383a",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:01:18.445Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-69fc8984-867b-47c6-9802-578064a1a7a8",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T14:01:18.443Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-dd73f4d1-ffbd-43fd-9173-3cb82399da37",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:59:18.444Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-4843ec43-ea13-4a63-9b04-483f09b4a29d",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:59:18.443Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-2224e4b2-4226-47f3-a77b-ad9ef14c9298",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:57:18.444Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-e6655ea9-ce9c-46cf-866a-62000b735271",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:57:18.442Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-d16d11dd-ff59-40fc-8df4-18b48b114985",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:55:18.444Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-99b878b5-b22c-4e67-be49-db78ebc6313b",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:55:18.442Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-b1bab88c-21e5-4c5a-807b-3e5930a4158e",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:53:18.444Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-df112605-8fca-41f8-bd8f-cf1549c68661",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:53:18.442Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-c7b15170-0152-403d-93af-5d12e4852307",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:51:18.442Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-1b0736a9-8da1-43b7-9117-8b0909cf68ab",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:51:18.440Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-bf758da3-b7d7-4404-9e45-4a3208bd9b1e",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:49:18.441Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-abc1cc5f-63e8-40cb-8def-da060fc6ad7d",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:49:18.439Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-d4f8d8d7-c091-40bf-982d-430cc9e7a85c",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:47:18.439Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-86086da0-10da-459a-8d6f-15b3add4abca",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:47:18.437Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-e008adf4-79e8-44b8-ad79-12b8c29c0d10",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:45:18.439Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-72bde0d9-f1c3-4053-885d-83305403b075",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:45:18.437Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-57cf8474-c432-4608-8bc6-64c7bc00fdc7",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:43:18.437Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-3785ed18-88b0-4acc-ab19-5d01d6dc6d3e",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:43:18.436Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-85cfc958-5e64-497a-8070-3bcf46b33cd2",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:41:18.437Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-a12c9e36-14e1-42b2-8619-ced98b6543a1",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:41:18.435Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-6142dd31-cd62-4bdf-9fca-84d2f2852540",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:39:18.435Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-cb976fca-dc01-43da-84bd-eb3b45323a17",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:39:18.433Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-39a35075-e8a3-4f6b-bcfc-9ae06486529c",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:37:18.433Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-da722556-f76c-4f05-a1f3-7da2feec6df8",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:37:18.431Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-858c366c-4fae-4d9a-bf33-963a48b1b43f",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:35:18.433Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-dcdd58f0-cc2c-4a1a-a764-040de945922e",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:35:18.431Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-95ce5c22-8146-4624-b7fe-83a3ef4c7af3",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:33:18.441Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-03abd6d1-844b-4cae-831e-b32998cab008",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:33:18.430Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-b7309d9d-d9d5-40fb-88ec-0320e25b159d",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:31:18.431Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-11b950a5-984b-4520-8848-36c08c8e13a9",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:31:18.430Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-014643ec-9f29-474c-b6f2-b1902adccce5",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:29:18.431Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-8a24e05e-024d-481f-8344-c69943bd76d5",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:29:18.429Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-ff92acf9-db55-4aeb-8742-3fad0f0afff8",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:27:18.429Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-c811f3fc-d16d-43e3-90bf-716f05ec6e41",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:27:18.428Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-de7ebb05-c85b-4e2d-aa5f-1f5fe58c0ad9",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:25:18.428Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-d4f568ab-8f66-437a-b21a-7c453c093850",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:25:18.427Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-1edbe28e-8a32-48dd-b0ca-6d76144567e3",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:23:18.428Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-53d00c00-ff2d-44fc-ad9d-d517d44e207b",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:23:18.427Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-acdb2b6a-ce46-4c99-863e-1a34d3ab5af4",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:21:18.428Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-78769d2e-9568-4cc4-9bdb-cfd668931212",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:21:18.427Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-eb2ee2e5-097a-453e-90d0-f3b454aea711",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:19:18.427Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-877a0071-cf79-400d-a8ee-a8e93ff1f476",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:19:18.425Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-93d378b7-518b-42a2-8028-7c8b68a6cc09",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:17:18.426Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-1ca408bf-2a6c-4f4d-a0df-e25bb77389d9",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:17:18.424Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-72f12614-892f-457f-988b-5df5e4d2ee28",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:15:18.424Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-19abd1f7-41f5-44b7-82ad-293392039aa2",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:15:18.423Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-0f208f34-ff68-499f-895e-cba9690c3264",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:13:18.423Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-6b09d25e-e65a-489f-b873-baf728ad20a9",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:13:18.422Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-13518647-1845-4838-bdaf-38728146361b",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:11:18.424Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-042f16fd-eb52-4b70-b54b-1392efdf3cdd",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:11:18.422Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-4d4f2aaa-1222-401a-8356-83c05c48dc29",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:09:18.425Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-3057d168-ece4-4fdd-a079-68a989c43cdb",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:09:18.423Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-65920cb7-e33b-438e-adf4-ce02e22602d9",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:07:18.422Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-d14b0c4f-0569-4bf7-a13c-34c1f6bf5543",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:07:18.421Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-927a4fe0-d533-4c09-8f43-9c7b52728d40",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:05:18.423Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-97fcd05f-aee8-4157-b526-fa3b0d3c4744",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:05:18.421Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-c6fd0c93-ddee-4f93-91a9-41cbfd34c5b5",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:03:18.422Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-46e1a48d-5fcd-4d0e-9773-df7ad5864eb5",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:03:18.421Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-356dc244-8ffe-4c8b-a524-4c8323102c1f",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:01:18.423Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-c08c5352-f089-4ff5-be4b-8986d1f3be6c",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T13:01:18.421Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-ca636e0a-c6e0-4e65-8b8c-91238dd49ae2",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:59:18.420Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-63e008ac-1e43-4c3a-bff5-b8718d8c0261",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:59:18.419Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-1e7b9168-ba10-4915-ae61-0a5a33e011ca",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:57:18.420Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-66a44192-42d5-46ac-b57b-cb7fe6894652",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:57:18.418Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-dfbf335e-e6cc-4154-9521-96e87e4a1ef2",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:55:18.418Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-462cfe6f-dfef-46c0-a801-5ef32f6d2913",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:55:18.417Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-5022b5f4-6d40-4af3-8927-21f0cbce8f59",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:53:18.418Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-bab691af-0ccf-4612-b433-99221f8ada42",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:53:18.416Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-80ddf8f2-bdc7-4031-8c09-2ffb263a9427",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:51:18.418Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-a873c501-00bc-433a-acc0-1be0f758981c",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:51:18.417Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-47013500-a8c0-416a-bf72-f388990bcd18",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:49:18.418Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-0546c80d-1252-4e88-8534-63e7ff2c69ad",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:49:18.416Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-5475df6f-40a5-4999-8f7c-4c782c9b3f3d",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:47:18.417Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-6bad62bc-bfa0-41b4-89dc-18a015f2a043",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:47:18.416Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-44b43d05-4427-419d-918e-d90f42261538",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:45:18.415Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-039d2a40-e1e4-46cf-8253-0dbafd19d98c",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:45:18.413Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-c0d40c7a-f04f-494b-96b9-76b8a03ca8a4",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:43:18.414Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-8521817d-f76a-4a36-97c7-807a27e9b033",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:43:18.412Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-db11af8b-ceeb-44c0-9bf9-b2d95ec47324",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:41:18.413Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-5355db8a-ef58-40f2-aa6e-e2ccbff7da2c",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:41:18.412Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-d8b71a28-4f72-4b2d-bcca-9ec17989f68a",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:39:18.413Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-d2a20c0c-5411-452f-b044-d906848bb7ce",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:39:18.412Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-49428b8e-9f07-481b-beae-6ef9c7afe8f3",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:37:18.411Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-d9f391e8-00f7-4efc-aabd-f0ec63c151bc",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:37:18.411Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-efbf903c-40e5-451e-8a91-8db93aae73ec",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:35:18.412Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-5c96c3f8-f982-4eb5-8017-1d3c6cf8b339",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:35:18.411Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-6b998289-d49f-4ce8-8dcf-e9ddd8e9c676",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:33:18.410Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-0d870417-a9ad-4363-ba1f-2d92213a82ae",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:33:18.410Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-137d9298-740c-48f3-9219-65b5a59c1302",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:31:18.412Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-ae2789bf-db5f-453f-a346-bc07ffe50d90",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:31:18.411Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-ee16b9d4-4233-47d3-ad26-84a9dc3a4e06",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:29:18.410Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-521a4eee-5332-4616-8cd9-18e8b73fb3f0",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:29:18.410Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-95fdc122-97ba-4d42-b18e-2eafc91a0dcf",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:27:18.411Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-967107fe-5f60-49d7-9941-bc048a9f1d64",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:27:18.410Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-5e4091fc-736e-4b4d-b592-71f5ccfa005d",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:25:18.409Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-7147641b-f18e-4dd6-84f8-1bd7e79c3242",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:25:18.408Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-d4293a3b-10aa-4cb7-b34c-8c52261e3809",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:23:18.409Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-c67724fe-87dd-4e4a-9bf6-ab0aecdf849e",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:23:18.408Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-a25c5eaa-92a7-4224-b620-3f9b941a9b5d",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:21:18.408Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-97ad9dd2-9426-4798-9c0d-de989d861b8a",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:21:18.407Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-13e3bef1-6f9c-4b97-b68c-e4b98452670e",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:19:18.409Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-f77da387-ebbb-423e-9bf4-4b425dd8d690",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:19:18.408Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-b789323e-39d2-43e5-9acb-b44caadd716b",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:17:18.407Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-e6e456f1-69cf-4bfa-a3d0-dd2ec9169bd5",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:17:18.407Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-dd2750a1-b979-46fd-a9ff-6dee9deeeb22",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:15:18.406Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-8e949a41-e6ee-4a81-bc98-a6643df27645",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:15:18.405Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-0da488d9-9b69-4266-a43c-50b784d90623",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:13:18.405Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-15d353bb-38b4-4ca5-b3ee-1491ca9f0f0a",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:13:18.405Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-53fb48fc-5d3f-433d-8217-1b21352de78d",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:11:18.404Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-a671bf3f-22b7-4e64-a2bf-32cf9aae2935",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:11:18.403Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-d872f13a-4a21-4e51-82ad-aaa2d28e1fd2",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:09:18.403Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-6b8061ba-4c46-4938-8217-81ce4b5bfd2b",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:09:18.403Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-33f61c66-9b6a-4378-8306-aaf448e2b3c9",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:07:18.404Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-b06ce75e-f5a9-4521-902e-9f1d415e6dc7",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:07:18.403Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-e92113a5-d218-48b5-b360-8f76c468ec00",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:05:18.403Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-8fc347c3-89bb-45d1-943c-3da38994953f",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:05:18.402Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-da16e6d1-ea7f-445c-be29-d28832889da9",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:03:18.402Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-970806f8-99ca-4a1d-bfe2-99e94a0cb79c",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:03:18.401Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-a346fd03-7650-4c1c-9ca4-b9e57c36df3e",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:01:18.400Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-9532822e-ba10-49e7-805f-e54c18e3d705",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T12:01:18.399Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-183def16-dc37-4af0-adab-2b3b5284f32c",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:59:18.399Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-ad620154-c008-4e9b-94f6-81212e2694bf",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:59:18.398Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-196d63df-45f0-4928-8060-6a2e534957e8",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:57:18.398Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-edb519db-6ffc-403d-a226-ffe9d097403b",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:57:18.397Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-069e8bee-7846-48fe-b5e1-885d87de31aa",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:55:18.397Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-562c8870-e418-4330-901e-361e8b706dff",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:55:18.397Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-2f9a500a-d991-4157-83a1-c8ec8b9e2046",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:53:18.396Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-310f1328-933f-4465-b589-312901cf99d8",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:53:18.395Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-18912bba-77bd-42c3-9794-244c7be51deb",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:51:18.395Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-37a6461d-328f-4ac5-b2f7-a7cca038c161",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:51:18.394Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-3c3161dd-d93e-4dd9-b651-aacddf737456",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:49:18.393Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-c19d3351-03f4-4908-aa3f-03eb6f36f91d",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:49:18.393Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-a8517eca-13e6-4e8a-9f0c-f6e2dcb03b55",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:47:18.393Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-7cf9e79b-97de-493b-954e-28b2d8347908",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:47:18.392Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-329fd0d9-dcc0-4c9a-9fe7-8eaea94d74d6",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:45:18.394Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-392fea91-caf3-48ec-a555-88aca67258ba",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:45:18.393Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-9da261f6-f056-487c-a7dc-fffab9031740",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:43:18.392Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-dcdb582e-dab1-4e84-a7cb-d2ac00e49841",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:43:18.391Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-4d9bf874-f60e-4730-888c-2aa5bdd66c25",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:41:18.391Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-e6335708-c581-4241-afa7-53e6bbf83410",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:41:18.390Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-899460be-a17f-43b7-b42f-c860192e5efd",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:39:18.390Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-1013b77e-ea07-4eb0-81c3-8c66e1c3cc56",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:39:18.389Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-9e25c28f-5306-4a4a-9eac-5bf1c3fbbe08",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:37:18.388Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-6d892b6e-9ba2-464b-a902-932eec717dcd",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:37:18.388Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-3fd437a7-e30a-46b5-8be0-8302122d9fb2",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:35:18.388Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-9fd49ea0-9b8c-4070-8ac1-2d40c1b64cea",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:35:18.388Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-59aa2376-d6a2-40b4-96a3-de47aee5bf4a",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:33:18.388Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-86d6489a-2cb9-4f50-8b50-54ae651e999d",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:33:18.388Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-23650e27-dc13-4e59-9fc7-6bffe23df770",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:31:18.387Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-55ea4fc9-1ab4-4461-b84a-2ac70a5e5f50",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:31:18.387Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-dd2e4e82-a75b-4e36-a935-e16a8f5ef29d",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:29:18.387Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-8c562b29-b1f7-401c-bdb9-98d747802206",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:29:18.387Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-a0b5f83b-73d0-4f88-b09d-09fc9e21b980",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:27:18.386Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-e3a5091b-4e24-4a3c-b084-ef0bb77c2ff4",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:27:18.386Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-527a2bcf-da17-4c69-a87a-1589d4c36e59",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:25:18.386Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-6474f1b5-5003-465b-ab63-bd544f7ab6f1",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:25:18.385Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-5be62172-7f2e-4c51-8cb0-4ac2a7b649e6",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:23:18.384Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-e5f6e0c5-7855-4834-932e-25d3ca09364b",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:23:18.383Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-9284fe4e-f6d8-44d0-b075-cbffb30e60a3",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:21:18.382Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-2df9ee9f-bf54-4de6-877e-e1744d65a6a4",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:21:18.382Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-cc2cf033-b42f-41f2-a447-852e9fbc8e2b",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:19:18.382Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-4966325d-f6e8-4590-a910-76a34882bf1e",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:19:18.381Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-f3b65278-cf78-46f9-818d-9d8c1dcfab90",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:17:18.382Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-ba907552-10b7-405b-901e-ddb1d24b7ee8",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:17:18.381Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-ae2491aa-e1a6-4cd6-9667-5966bc1b2b3d",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:15:18.382Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-cb9f49c0-3e65-4f18-a1fa-3e5520c6ead3",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:15:18.381Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-8d891e55-0890-4418-af2d-1f7556a6df4e",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:13:18.381Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-11159972-372b-4e6f-a5ef-7410c90f1a30",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:13:18.381Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-85b38fbc-24b8-4143-84a8-674e3f07fa58",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:11:18.381Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-ac16e918-a569-4eb5-897f-032f0e06b40f",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:11:18.381Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-f6ae5f74-49c5-4faa-a609-e08e06a96c40",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:09:18.381Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-ef809c42-3786-44d3-84e0-0e2c86592d0e",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:09:18.380Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-ff04a775-3fcf-4c5e-90a6-fde01e99ab10",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:07:18.380Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-315287ad-5d11-4c20-bdb6-c83dfd9cc8c3",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:07:18.379Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-f02865d4-df18-4793-a3a6-14a521030274",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:05:18.384Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-9e379ead-086a-41f9-acce-af06c6519cbe",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:05:18.382Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-e6f8bcdb-e0bc-4867-90a7-cf277d384ec8",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:01:44.636Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-f4e55b73-a603-4f4f-8c5b-5edab09eaa94",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T11:01:44.635Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-92807be6-f70e-409e-9474-1a7deab73ca3",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:59:44.635Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-f28028bd-ca07-42b4-b7a3-5c875b2f8353",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:59:44.635Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-1bc219ac-78b5-4edb-9c9f-2c5a7d84c392",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:57:44.634Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-8099a58a-959d-4b95-9051-8e30c79459fa",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:57:44.634Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-0e5983cb-c9f1-4ac9-b144-e0e555c1000b",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:55:44.634Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-cdb634ef-431b-45fd-b4f8-d2c090051e31",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:55:44.633Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-ccf0c52b-120a-42b5-80ca-7d35eef72134",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:53:44.633Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-926d1bc0-1616-471f-8e22-32b8333da180",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:53:44.633Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-a1bf61bd-ae4f-4234-a665-a79e1c775de0",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:51:44.632Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-1d68f03b-b92d-4790-a9d1-39d8b63f177c",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:51:44.631Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-d513a2b6-f564-4e02-9799-d9c2da5029e0",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:49:44.631Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-739d8ed6-f5a0-46a6-992c-bf760cbb19c3",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:49:44.631Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-b3c27d4d-59af-48b3-8b93-42d799d844e2",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:47:44.631Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-bb5b0e5b-99e8-40d0-93ef-3987df94d2d0",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:47:44.630Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-01492f2c-79a5-4a64-8a75-79ba6414325f",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:45:44.630Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-ae98869c-6766-4f8f-b0c0-fdc9167c3e86",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:45:44.629Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-57e970b5-63a8-4043-8ef1-eb07b1637fe0",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:43:44.628Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-c8df2c04-fce4-4816-aba8-6cb09f75ddce",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:43:44.628Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-86e62d1b-ea56-4d74-8935-cde76e239969",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:41:44.628Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-e127c298-f241-4059-b3e9-4e9f12100da2",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:41:44.628Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-82f55f5d-df5d-407e-a82d-77911a3156a1",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:39:44.627Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-23a2e02f-c93d-4a04-aa0d-499bc25001bc",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:39:44.627Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-a4a25fbd-6eb1-4fd8-b212-c93880e196bd",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:37:44.627Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-f011db30-7e59-44a6-8fd7-d35c975d8b76",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:37:44.626Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-1943e735-47c5-42dc-be76-31ee9a881292",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:35:44.625Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-80b6fa01-e4ac-485a-a516-311766f402e6",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:35:44.625Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-8b2a254e-ad80-4362-a453-966e13a560c9",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:33:44.626Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-087d3af0-9c3a-4cc7-a8a7-b30e3514444b",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:33:44.625Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-72320a5a-6007-4fc1-a37f-1d394831d692",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:30:22.012Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-8e131885-8a35-493f-a66f-b112800663bc",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:30:22.011Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-dc2dde75-ac81-423e-90e6-859d291b887f",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:28:22.011Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-013ce73b-91d5-44ac-a493-a927640851d5",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:28:22.010Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-2d232ad1-0446-47cd-a9c4-f2ac52212fc7",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:26:22.010Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-07fb5a16-c4e1-48ce-b0fe-663b0a7154bb",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:26:22.010Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-7ea24630-328a-48fb-973b-59529dcc8f53",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:24:22.011Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-f7f07327-71cc-475a-8b21-e19b76c9f8e3",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:24:22.010Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-0deaa751-4114-44b2-ba5c-2135946d9834",
+      "bookingId": "booking-dbf16f57-6e83-4a55-a167-c69d2d5aaa79",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[New Booking Request] Pending Approval: Boardroom Alpha",
+      "body": "Dear Admin,\n\nA new meeting room reservation has been submitted and is currently pending approval.\n\nRoom: Boardroom Alpha\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 09:00 (30 minutes)\nAttendees: 9\n\nPlease review and approve/reject this booking.",
+      "sentAt": "2026-07-05T10:23:26.699Z",
+      "priority": "Normal",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-3918dbb4-9694-4db7-a226-4e1d2821c400",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:22:22.009Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-ac6b5706-c5f7-4e29-8124-59f8aaf3de7f",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:20:22.008Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-7e938f89-c55c-4424-9914-dde07101b189",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:18:22.007Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-cb08bff9-3cd1-4e55-bfeb-9f849b5b48fe",
+      "bookingId": "account-approval",
+      "emailTo": "pending@psgroup.in",
+      "subject": "Your Meeting Room Portal Account has been Approved!",
+      "body": "Dear John Doe,\n\nAn administrator has approved your registration for the Meeting Room Portal.\n\nYou can now log in at https://ais-dev-jeqaeefd3h7gpit4pq6mfe-563717408510.asia-east1.run.app and start booking corporate meeting rooms.\n\nThank you,\nCorporate Operations",
+      "sentAt": "2026-07-05T10:18:08.318Z",
+      "priority": "Normal",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-1a949304-2e26-4aed-8e6e-b79d3c6cbce6",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:16:22.007Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-fa98bd54-d45f-4f64-95ad-d251e9a6d53a",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:14:22.008Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-60379a74-6cf8-4bdc-b911-572ee33fddfa",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:12:22.006Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-fb70508b-df43-4b78-9131-9d126d47664e",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:10:22.005Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-652bc6b5-95ab-4a8b-bcf1-a79a1f74be26",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:08:22.006Z",
+      "priority": "High",
+      "status": "logged_only"
+    },
+    {
+      "notificationId": "notif-90810e2c-3475-4ed0-b8ec-1e8a009891a0",
+      "bookingId": "booking-2",
+      "emailTo": "admin@psgroup.in",
+      "subject": "[HIGH-PRIORITY ALERT] Booking Request #booking-2 is Still Pending Approval!",
+      "body": "Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: Collaboration Hub\nRequested By: Supratik Bagchi (user@psgroup.in)\nDate: 2026-07-05\nTime: 14:30 (90 mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.",
+      "sentAt": "2026-07-05T10:05:25.362Z",
+      "priority": "High",
+      "status": "logged_only"
+    }
+  ],
+  "adminActivities": []
+}
