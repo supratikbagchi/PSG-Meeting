@@ -1,0 +1,6 @@
+{
+  "name": "Meeting Room Booking Application",
+  "description": "A full-stack corporate meeting room reservation system with user authorization constraints, role-based controls, admin approvals, and persistent pending booking notifications.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
