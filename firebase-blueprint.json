@@ -1,0 +1,100 @@
+{
+  "entities": {
+    "Room": {
+      "title": "Room",
+      "description": "A corporate meeting room",
+      "type": "object",
+      "properties": {
+        "roomId": { "type": "string" },
+        "name": { "type": "string" },
+        "capacity": { "type": "integer" },
+        "features": { "type": "array" }
+      },
+      "required": ["roomId", "name", "capacity", "features"]
+    },
+    "User": {
+      "title": "User",
+      "description": "A corporate employee profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "isApproved": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "name", "role", "isApproved", "createdAt"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "A meeting room reservation",
+      "type": "object",
+      "properties": {
+        "bookingId": { "type": "string" },
+        "roomId": { "type": "string" },
+        "date": { "type": "string" },
+        "startTime": { "type": "string" },
+        "duration": { "type": "integer" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "bookerName": { "type": "string" },
+        "bookerEmail": { "type": "string" },
+        "attendeesCount": { "type": "integer" }
+      },
+      "required": ["bookingId", "roomId", "date", "startTime", "duration", "status", "createdAt", "bookerName", "bookerEmail"]
+    },
+    "NotificationLog": {
+      "title": "NotificationLog",
+      "description": "A notification sent by the alert system",
+      "type": "object",
+      "properties": {
+        "notificationId": { "type": "string" },
+        "bookingId": { "type": "string" },
+        "emailTo": { "type": "string" },
+        "subject": { "type": "string" },
+        "body": { "type": "string" },
+        "sentAt": { "type": "string" },
+        "priority": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["notificationId", "bookingId", "emailTo", "subject", "body", "sentAt", "priority", "status"]
+    },
+    "AdminActivityLog": {
+      "title": "AdminActivityLog",
+      "description": "An administrative action log",
+      "type": "object",
+      "properties": {
+        "logId": { "type": "string" },
+        "adminEmail": { "type": "string" },
+        "adminName": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["logId", "adminEmail", "adminName", "action", "details", "timestamp"]
+    }
+  },
+  "firestore": {
+    "rooms/{roomId}": {
+      "schema": "Room",
+      "description": "Registered meeting rooms"
+    },
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User accounts"
+    },
+    "bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Meeting room bookings"
+    },
+    "notifications/{notificationId}": {
+      "schema": "NotificationLog",
+      "description": "Notifications logged"
+    },
+    "adminActivities/{logId}": {
+      "schema": "AdminActivityLog",
+      "description": "Admin activity logs"
+    }
+  }
+}

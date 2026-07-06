@@ -1,39 +1,92 @@
 import { User, Room, Booking, NotificationLog, Recommendation, AdminActivityLog } from "../types";
+import { db, hashPassword, seedFirestoreIfNeeded, handleFirestoreError, OperationType } from "./firebase";
+import {
+  collection,
+  getDocs,
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  where
+} from "firebase/firestore";
 
-const API_BASE = "/api";
+// Auto-seeding flag
+let isSeeded = false;
+async function ensureDb() {
+  if (!isSeeded) {
+    // Wrapped in try/catch to let any initial seeding permission error bubble up appropriately
+    try {
+      await seedFirestoreIfNeeded();
+      isSeeded = true;
+    } catch (err) {
+      console.error("Auto-seeding check failed, forwarding:", err);
+      throw err;
+    }
+  }
+}
 
-// Fetch helper to inject JWT authorization header automatically
-async function apiRequest<T>(
-  endpoint: string,
-  method: "GET" | "POST" | "PUT" | "DELETE" = "GET",
-  body: any = null
+/**
+ * Centrally manages Firestore executions, catching any permission failures
+ * and formatting them using handleFirestoreError for automated platform resolution.
+ */
+async function runFirestore<T>(
+  operation: () => Promise<T>,
+  type: OperationType,
+  path: string
 ): Promise<T> {
-  const token = localStorage.getItem("ps_booking_token");
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
-  };
-
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+  try {
+    return await operation();
+  } catch (error) {
+    console.error(`[Firestore Operation Failure] Type: ${type} | Path: ${path}`, error);
+    return handleFirestoreError(error, type, path);
   }
+}
 
-  const config: RequestInit = {
-    method,
-    headers,
-  };
+// ==================== TIME & OVERLAP UTILITIES ====================
 
-  if (body) {
-    config.body = JSON.stringify(body);
+function timeToMinutes(timeStr: string): number {
+  const [hours, minutes] = timeStr.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function minutesToTime(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
+}
+
+function isOverlapping(startA: string, durationA: number, startB: string, durationB: number): boolean {
+  const minStartA = timeToMinutes(startA);
+  const minEndA = minStartA + durationA;
+  const minStartB = timeToMinutes(startB);
+  const minEndB = minStartB + durationB;
+
+  return minStartA < minEndB && minStartB < minEndA;
+}
+
+// Helper to log administrative actions
+async function addAdminActivity(action: string, details: string): Promise<void> {
+  try {
+    const activeUser = apiService.getCachedUser();
+    const logId = "log-" + Math.random().toString(36).substr(2, 9);
+    const log: AdminActivityLog = {
+      logId,
+      adminEmail: activeUser?.email || "admin@psgroup.in",
+      adminName: activeUser?.name || "PS Group Admin",
+      action,
+      details,
+      timestamp: new Date().toISOString()
+    };
+    await runFirestore(
+      () => setDoc(doc(db, "adminActivities", logId), log),
+      OperationType.WRITE,
+      "adminActivities"
+    );
+  } catch (err) {
+    console.error("Failed to write administrative log:", err);
   }
-
-  const response = await fetch(`${API_BASE}${endpoint}`, config);
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
-  }
-
-  return response.json() as Promise<T>;
 }
 
 export const apiService = {
@@ -72,30 +125,118 @@ export const apiService = {
    * Login credentials verification
    */
   async login(email: string, password: string): Promise<{ token: string; user: User }> {
-    const data = await apiRequest<{ token: string; user: User }>("/auth/login", "POST", { email, password });
-    this.setSession(data.token, data.user);
-    return data;
+    await ensureDb();
+
+    // Query user by email
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("email", "==", email.toLowerCase().trim()));
+    const snapshot = await runFirestore(
+      () => getDocs(q),
+      OperationType.GET,
+      "users"
+    );
+
+    if (snapshot.empty) {
+      throw new Error("Invalid credentials");
+    }
+
+    const userDoc = snapshot.docs[0];
+    const user = userDoc.data() as User & { passwordHash: string };
+
+    const computedHash = await hashPassword(password);
+    if (user.passwordHash !== computedHash) {
+      throw new Error("Invalid credentials");
+    }
+
+    if (!user.isApproved) {
+      throw new Error("Your account is pending corporate approval by admin.");
+    }
+
+    // Mock authentication token matching the architecture requirements
+    const token = `jwt-mock-${user.uid}`;
+    this.setSession(token, user);
+    return { token, user };
   },
 
   /**
    * Register a new corporate employee profile
    */
   async register(email: string, password: string, name: string): Promise<{ message: string; user: User }> {
-    return apiRequest<{ message: string; user: User }>("/auth/register", "POST", { email, password, name });
+    await ensureDb();
+
+    const formattedEmail = email.toLowerCase().trim();
+
+    // Query for existing account
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("email", "==", formattedEmail));
+    const snapshot = await runFirestore(
+      () => getDocs(q),
+      OperationType.GET,
+      "users"
+    );
+
+    if (!snapshot.empty) {
+      throw new Error("An account with this email already exists");
+    }
+
+    const uid = "user-" + Math.random().toString(36).substr(2, 9);
+    const computedHash = await hashPassword(password);
+
+    const newUser: User & { passwordHash: string } = {
+      uid,
+      email: formattedEmail,
+      name,
+      role: "User",
+      isApproved: false, // Must be approved by corporate admin
+      createdAt: new Date().toISOString(),
+      passwordHash: computedHash
+    };
+
+    await runFirestore(
+      () => setDoc(doc(db, "users", uid), newUser),
+      OperationType.WRITE,
+      "users"
+    );
+
+    // Stripping hash before returning
+    const { passwordHash: _, ...userWithoutHash } = newUser;
+    return {
+      message: "Registration successful. Please contact your administrator to approve your portal access.",
+      user: userWithoutHash as User
+    };
   },
 
   /**
    * Get authenticated user profile details from backend
    */
   async getProfile(): Promise<{ user: User }> {
-    try {
-      const data = await apiRequest<{ user: User }>("/auth/me", "GET");
-      localStorage.setItem("ps_booking_user", JSON.stringify(data.user));
-      return data;
-    } catch (err) {
+    await ensureDb();
+    const token = localStorage.getItem("ps_booking_token");
+    if (!token || !token.startsWith("jwt-mock-")) {
       this.logout();
-      throw err;
+      throw new Error("No active session detected.");
     }
+
+    const uid = token.replace("jwt-mock-", "");
+    const userDoc = await runFirestore(
+      () => getDoc(doc(db, "users", uid)),
+      OperationType.GET,
+      `users/${uid}`
+    );
+
+    if (!userDoc.exists()) {
+      this.logout();
+      throw new Error("User record not found.");
+    }
+
+    const user = userDoc.data() as User;
+    if (!user.isApproved) {
+      this.logout();
+      throw new Error("Your account has been deactivated or is pending admin approval.");
+    }
+
+    localStorage.setItem("ps_booking_user", JSON.stringify(user));
+    return { user };
   },
 
   // ==================== ROOM PORTAL SERVICE ====================
@@ -104,28 +245,81 @@ export const apiService = {
    * Fetch all registered meeting rooms
    */
   async getRooms(): Promise<Room[]> {
-    return apiRequest<Room[]>("/rooms", "GET");
+    await ensureDb();
+    const snapshot = await runFirestore(
+      () => getDocs(collection(db, "rooms")),
+      OperationType.GET,
+      "rooms"
+    );
+    const rooms: Room[] = [];
+    snapshot.forEach(doc => {
+      rooms.push(doc.data() as Room);
+    });
+    return rooms;
   },
 
   /**
    * Create a new corporate meeting room
    */
   async addRoom(name: string, capacity: number, features: string[]): Promise<Room> {
-    return apiRequest<Room>("/rooms", "POST", { name, capacity, features });
+    await ensureDb();
+    const roomId = "room-" + Math.random().toString(36).substr(2, 9);
+    const room: Room = {
+      roomId,
+      name,
+      capacity: Number(capacity),
+      features
+    };
+
+    await runFirestore(
+      () => setDoc(doc(db, "rooms", roomId), room),
+      OperationType.WRITE,
+      "rooms"
+    );
+    await addAdminActivity("Create Room", `Added new meeting room: ${name} (Capacity: ${capacity})`);
+    return room;
   },
 
   /**
    * Modify properties of an existing meeting room
    */
   async updateRoom(roomId: string, name: string, capacity: number, features: string[]): Promise<Room> {
-    return apiRequest<Room>(`/rooms/${roomId}`, "PUT", { name, capacity, features });
+    await ensureDb();
+    const room: Room = {
+      roomId,
+      name,
+      capacity: Number(capacity),
+      features
+    };
+
+    await runFirestore(
+      () => setDoc(doc(db, "rooms", roomId), room),
+      OperationType.WRITE,
+      "rooms"
+    );
+    await addAdminActivity("Update Room", `Modified properties for room: ${name}`);
+    return room;
   },
 
   /**
    * Remove a meeting room
    */
   async deleteRoom(roomId: string): Promise<{ message: string }> {
-    return apiRequest<{ message: string }>(`/rooms/${roomId}`, "DELETE");
+    await ensureDb();
+    const roomDoc = await runFirestore(
+      () => getDoc(doc(db, "rooms", roomId)),
+      OperationType.GET,
+      `rooms/${roomId}`
+    );
+    const roomName = roomDoc.exists() ? (roomDoc.data() as Room).name : roomId;
+
+    await runFirestore(
+      () => deleteDoc(doc(db, "rooms", roomId)),
+      OperationType.DELETE,
+      "rooms"
+    );
+    await addAdminActivity("Delete Room", `Removed room: ${roomName}`);
+    return { message: "Room deleted successfully" };
   },
 
   // ==================== BOOKING PORTAL SERVICE ====================
@@ -134,7 +328,27 @@ export const apiService = {
    * Fetch accessible booking logs (Admins see all, Users see their own)
    */
   async getBookings(): Promise<Booking[]> {
-    return apiRequest<Booking[]>("/bookings", "GET");
+    await ensureDb();
+    const snapshot = await runFirestore(
+      () => getDocs(collection(db, "bookings")),
+      OperationType.GET,
+      "bookings"
+    );
+    const bookings: Booking[] = [];
+    snapshot.forEach(doc => {
+      bookings.push(doc.data() as Booking);
+    });
+
+    // Sort by createdAt descending
+    bookings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    const user = this.getCachedUser();
+    if (user?.role === "Admin") {
+      return bookings;
+    }
+
+    // Filter to user's bookings only
+    return bookings.filter(b => b.bookerEmail === user?.email || b.userId === user?.uid);
   },
 
   /**
@@ -151,14 +365,92 @@ export const apiService = {
     clientDate?: string;
     clientTime?: string;
   }): Promise<{ message: string; booking: Booking }> {
-    return apiRequest<{ message: string; booking: Booking }>("/bookings", "POST", bookingDetails);
+    await ensureDb();
+
+    const user = this.getCachedUser();
+
+    // Fetch approved bookings for the same room on the same day to double-check conflicts
+    const bookingsRef = collection(db, "bookings");
+    const snapshot = await runFirestore(
+      () => getDocs(bookingsRef),
+      OperationType.GET,
+      "bookings"
+    );
+    const bookings: Booking[] = [];
+    snapshot.forEach(doc => {
+      bookings.push(doc.data() as Booking);
+    });
+
+    const approvedOnDay = bookings.filter(
+      b => b.roomId === bookingDetails.roomId && b.date === bookingDetails.date && b.status === "Approved"
+    );
+
+    const conflict = approvedOnDay.find(b =>
+      isOverlapping(bookingDetails.startTime, bookingDetails.duration, b.startTime, b.duration)
+    );
+
+    if (conflict) {
+      throw new Error(`Time collision! The requested slot conflicts with a confirmed reservation (${conflict.startTime}).`);
+    }
+
+    const bookingId = "book-" + Math.random().toString(36).substr(2, 9);
+    const newBooking: Booking = {
+      bookingId,
+      userId: user?.uid,
+      roomId: bookingDetails.roomId,
+      date: bookingDetails.date,
+      startTime: bookingDetails.startTime,
+      duration: Number(bookingDetails.duration),
+      status: "pending", // Initially pending corporate approval
+      createdAt: new Date().toISOString(),
+      bookerName: bookingDetails.bookerName,
+      bookerEmail: bookingDetails.bookerEmail,
+      attendeesCount: bookingDetails.attendeesCount ? Number(bookingDetails.attendeesCount) : undefined
+    };
+
+    await runFirestore(
+      () => setDoc(doc(db, "bookings", bookingId), newBooking),
+      OperationType.WRITE,
+      "bookings"
+    );
+    return {
+      message: "Your instant meeting reservation is received and currently pending corporate admin approval.",
+      booking: newBooking
+    };
   },
 
   /**
    * Modify the status of a pending reservation request (Approved or Rejected)
    */
   async updateBookingStatus(bookingId: string, status: "Approved" | "Rejected"): Promise<Booking> {
-    return apiRequest<Booking>(`/bookings/${bookingId}/status`, "PUT", { status });
+    await ensureDb();
+
+    const bookingRef = doc(db, "bookings", bookingId);
+    const bookingDoc = await runFirestore(
+      () => getDoc(bookingRef),
+      OperationType.GET,
+      `bookings/${bookingId}`
+    );
+
+    if (!bookingDoc.exists()) {
+      throw new Error("Booking record not found");
+    }
+
+    const booking = bookingDoc.data() as Booking;
+    booking.status = status;
+
+    await runFirestore(
+      () => updateDoc(bookingRef, { status }),
+      OperationType.UPDATE,
+      "bookings"
+    );
+
+    await addAdminActivity(
+      `${status} Reservation`,
+      `Set status of reservation request for Room ID ${booking.roomId} to ${status} (Booker: ${booking.bookerName})`
+    );
+
+    return booking;
   },
 
   // ==================== RECOMMENDATIONS / AVAILABILITY SERVICE ====================
@@ -173,7 +465,83 @@ export const apiService = {
     clientDate?: string;
     clientTime?: string;
   }): Promise<Recommendation[]> {
-    return apiRequest<Recommendation[]>("/availability", "POST", query);
+    await ensureDb();
+
+    const { date, attendeesCount, duration, clientDate, clientTime } = query;
+
+    if (!date || !duration) {
+      throw new Error("Date and meeting duration are required");
+    }
+
+    const rooms = await this.getRooms();
+    const requestedCapacity = attendeesCount ? Number(attendeesCount) : 0;
+    const reqDuration = Number(duration);
+
+    // 1. Filter rooms meeting minimum requirements
+    const suitableRooms = rooms.filter(r => r.capacity >= requestedCapacity);
+
+    // Corporate Work Hours: 09:00 to 18:00
+    const workStart = 9 * 60; // 540 minutes
+    const workEnd = 18 * 60;  // 1080 minutes
+
+    // Generate intervals
+    const intervals: number[] = [];
+    for (let m = workStart; m + reqDuration <= workEnd; m += 30) {
+      intervals.push(m);
+    }
+
+    const clientTimeMin = clientTime ? timeToMinutes(clientTime) : -1;
+
+    // Fetch bookings to check overlaps
+    const snapshot = await runFirestore(
+      () => getDocs(collection(db, "bookings")),
+      OperationType.GET,
+      "bookings"
+    );
+    const allBookings: Booking[] = [];
+    snapshot.forEach(doc => {
+      allBookings.push(doc.data() as Booking);
+    });
+
+    const recommendations = suitableRooms.map(room => {
+      const approvedOnDay = allBookings.filter(
+        b => b.roomId === room.roomId && b.date === date && b.status === "Approved"
+      );
+
+      const detailedSlots = intervals.map(startMin => {
+        const startStr = minutesToTime(startMin);
+
+        let isPast = false;
+        if (clientDate && clientTime) {
+          if (date < clientDate) {
+            isPast = true;
+          }
+          if (date === clientDate && startMin <= clientTimeMin) {
+            isPast = true;
+          }
+        }
+
+        const conflictBooking = approvedOnDay.find(b => {
+          return isOverlapping(startStr, reqDuration, b.startTime, b.duration);
+        });
+
+        return {
+          time: startStr,
+          isAvailable: !isPast && !conflictBooking,
+          bookedBy: conflictBooking ? (conflictBooking.bookerName || "Another Colleague") : undefined
+        };
+      });
+
+      const freeSlots = detailedSlots.filter(s => s.isAvailable).map(s => s.time);
+
+      return {
+        room,
+        availableSlots: freeSlots,
+        slots: detailedSlots
+      };
+    });
+
+    return recommendations;
   },
 
   // ==================== ADMIN SYSTEM LOGS SERVICE ====================
@@ -182,41 +550,179 @@ export const apiService = {
    * Fetch all user accounts (Admin Portal)
    */
   async getAdminUsers(): Promise<User[]> {
-    return apiRequest<User[]>("/admin/users", "GET");
+    await ensureDb();
+    const snapshot = await runFirestore(
+      () => getDocs(collection(db, "users")),
+      OperationType.GET,
+      "users"
+    );
+    const users: User[] = [];
+    snapshot.forEach(doc => {
+      // Exclude password hashes
+      const { passwordHash: _, ...userWithoutHash } = doc.data() as any;
+      users.push(userWithoutHash as User);
+    });
+    return users;
   },
 
   /**
    * Approve or decline a pending user registration
    */
   async approveUser(userId: string, approved: boolean, role?: "User" | "Admin"): Promise<{ message: string; user: User }> {
-    return apiRequest<{ message: string; user: User }>(`/admin/users/${userId}/approve`, "PUT", { approved, role });
+    await ensureDb();
+
+    const userRef = doc(db, "users", userId);
+    const userDoc = await runFirestore(
+      () => getDoc(userRef),
+      OperationType.GET,
+      `users/${userId}`
+    );
+
+    if (!userDoc.exists()) {
+      throw new Error("User not found");
+    }
+
+    const userData = userDoc.data() as User;
+
+    if (!approved) {
+      await runFirestore(
+        () => deleteDoc(userRef),
+        OperationType.DELETE,
+        "users"
+      );
+      await addAdminActivity("Decline User", `Declined registration for ${userData.name} (${userData.email})`);
+      return { message: "User registration rejected and profile removed.", user: userData };
+    }
+
+    const updatedUser: Partial<User> = { isApproved: true };
+    if (role) {
+      updatedUser.role = role;
+    }
+
+    await runFirestore(
+      () => updateDoc(userRef, updatedUser),
+      OperationType.UPDATE,
+      "users"
+    );
+    const refreshedDoc = await runFirestore(
+      () => getDoc(userRef),
+      OperationType.GET,
+      `users/${userId}`
+    );
+    const finalUser = refreshedDoc.data() as User;
+
+    await addAdminActivity(
+      "Approve User",
+      `Approved registration for ${finalUser.name} (${finalUser.email}) with role: ${finalUser.role}`
+    );
+
+    return { message: "User profile approved successfully.", user: finalUser };
   },
 
   /**
    * Retrieve all notification logs (email loops) sent by the background checker
    */
   async getNotificationLogs(): Promise<NotificationLog[]> {
-    return apiRequest<NotificationLog[]>("/admin/notification-logs", "GET");
+    await ensureDb();
+    const snapshot = await runFirestore(
+      () => getDocs(collection(db, "notifications")),
+      OperationType.GET,
+      "notifications"
+    );
+    const logs: NotificationLog[] = [];
+    snapshot.forEach(doc => {
+      logs.push(doc.data() as NotificationLog);
+    });
+
+    logs.sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
+    return logs;
   },
 
   /**
    * Manually trigger the pending bookings notification alert loop
    */
   async triggerAlertLoop(): Promise<{ message: string }> {
-    return apiRequest<{ message: string }>("/admin/trigger-check", "POST");
+    await ensureDb();
+
+    const bookingsSnapshot = await runFirestore(
+      () => getDocs(collection(db, "bookings")),
+      OperationType.GET,
+      "bookings"
+    );
+    const pendingBookings: Booking[] = [];
+    bookingsSnapshot.forEach(doc => {
+      const b = doc.data() as Booking;
+      if (b.status === "pending") {
+        pendingBookings.push(b);
+      }
+    });
+
+    if (pendingBookings.length === 0) {
+      return { message: "Corporate Alert System: No pending reservations found requiring alert cycles." };
+    }
+
+    for (const booking of pendingBookings) {
+      const logId = "notif-" + Math.random().toString(36).substr(2, 9);
+      const notif: NotificationLog = {
+        notificationId: logId,
+        bookingId: booking.bookingId,
+        emailTo: booking.bookerEmail || "admin@psgroup.in",
+        subject: "ALERT: Corporate Meeting Room Reservation Status Pending",
+        body: `Dear ${booking.bookerName || "Colleague"},\n\nYour meeting reservation request for Room ${booking.roomId} on ${booking.date} at ${booking.startTime} is pending corporate administrative approval. You will receive an automated confirmation email once processed.\n\nBest Regards,\nPS Corporate Facility Operations`,
+        sentAt: new Date().toISOString(),
+        priority: "High",
+        status: "success"
+      };
+
+      await runFirestore(
+        () => setDoc(doc(db, "notifications", logId), notif),
+        OperationType.WRITE,
+        "notifications"
+      );
+    }
+
+    await addAdminActivity("Trigger Alerts", `Manually dispatched notifications for ${pendingBookings.length} pending reservation requests.`);
+
+    return { message: `Successfully executed the corporate notification loop and logged ${pendingBookings.length} notification entries.` };
   },
 
   /**
    * Delete a user account (Admin Portal)
    */
   async deleteUser(userId: string): Promise<{ message: string }> {
-    return apiRequest<{ message: string }>(`/admin/users/${userId}`, "DELETE");
+    await ensureDb();
+    const userDoc = await runFirestore(
+      () => getDoc(doc(db, "users", userId)),
+      OperationType.GET,
+      `users/${userId}`
+    );
+    const userName = userDoc.exists() ? (userDoc.data() as User).name : userId;
+
+    await runFirestore(
+      () => deleteDoc(doc(db, "users", userId)),
+      OperationType.DELETE,
+      "users"
+    );
+    await addAdminActivity("Delete User Account", `Deleted user account: ${userName}`);
+    return { message: "User profile deleted successfully" };
   },
 
   /**
    * Retrieve all admin activity logs (Admin Portal)
    */
   async getAdminActivities(): Promise<AdminActivityLog[]> {
-    return apiRequest<AdminActivityLog[]>("/admin/activities", "GET");
+    await ensureDb();
+    const snapshot = await runFirestore(
+      () => getDocs(collection(db, "adminActivities")),
+      OperationType.GET,
+      "adminActivities"
+    );
+    const logs: AdminActivityLog[] = [];
+    snapshot.forEach(doc => {
+      logs.push(doc.data() as AdminActivityLog);
+    });
+
+    logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return logs;
   }
 };
