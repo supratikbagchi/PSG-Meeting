@@ -1,8 +1,16 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // Allow users to write and read their own profile doc immediately after registration
+    match /users/{userId} {
+      allow create, read, update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null && request.auth.token.email_verified == true;
+    }
+    
+    // For all other meeting room, booking, and administrative data collections
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null && request.auth.token.email_verified == true;
     }
   }
 }

@@ -1,4 +1,5 @@
 import { initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
 import {
   getFirestore,
   collection,
@@ -12,6 +13,7 @@ import firebaseConfig from "../../firebase-applet-config.json";
 
 export const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const auth = getAuth(app);
 
 export enum OperationType {
   CREATE = "create",
@@ -104,53 +106,57 @@ export async function seedFirestoreIfNeeded(): Promise<void> {
   try {
     const roomsRef = collection(db, "rooms");
     const snapshot = await getDocs(roomsRef);
-    if (!snapshot.empty) {
-      // Already seeded
-      return;
-    }
+    
+    // Compute hashes dynamically for user credentials
+    const adminHash = await hashPassword("admin123");
+    const userHash = await hashPassword("user123");
+    const pendingHash = await hashPassword("user123");
 
-    console.log("[Firebase Seeder] Seeding database with initial corporate rooms and admin credentials...");
-    const batch = writeBatch(db);
+    if (snapshot.empty) {
+      console.log("[Firebase Seeder] Seeding database with initial corporate rooms...");
+      const batch = writeBatch(db);
 
-    // Initial Rooms
-    const initialRooms = [
-      {
-        roomId: "room-1",
-        name: "Boardroom Alpha",
-        capacity: 12,
-        features: ["Projector", "Video Conferencing", "Whiteboard", "AC"]
-      },
-      {
-        roomId: "room-2",
-        name: "Collaboration Hub",
-        capacity: 8,
-        features: ["Smart TV", "Whiteboard", "Glass Wall"]
-      },
-      {
-        roomId: "room-3",
-        name: "Focus Pod A",
-        capacity: 4,
-        features: ["High-speed Wi-Fi", "Whiteboard"]
-      },
-      {
-        roomId: "room-4",
-        name: "Executive Conference Room",
-        capacity: 15,
-        features: ["4K TV", "Conference Phone", "Whiteboard", "Catering Desk"]
+      // Initial Rooms
+      const initialRooms = [
+        {
+          roomId: "room-1",
+          name: "Boardroom Alpha",
+          capacity: 12,
+          features: ["Projector", "Video Conferencing", "Whiteboard", "AC"]
+        },
+        {
+          roomId: "room-2",
+          name: "Collaboration Hub",
+          capacity: 8,
+          features: ["Smart TV", "Whiteboard", "Glass Wall"]
+        },
+        {
+          roomId: "room-3",
+          name: "Focus Pod A",
+          capacity: 4,
+          features: ["High-speed Wi-Fi", "Whiteboard"]
+        },
+        {
+          roomId: "room-4",
+          name: "Executive Conference Room",
+          capacity: 15,
+          features: ["4K TV", "Conference Phone", "Whiteboard", "Catering Desk"]
+        }
+      ];
+
+      for (const room of initialRooms) {
+        const roomDoc = doc(db, "rooms", room.roomId);
+        batch.set(roomDoc, room);
       }
-    ];
-
-    for (const room of initialRooms) {
-      const roomDoc = doc(db, "rooms", room.roomId);
-      batch.set(roomDoc, room);
+      await batch.commit();
     }
 
-    // Initial Users
+    // Now, ensure or update the default users with the correct expected passwords
     const initialUsers = [
       {
         uid: "admin-1",
         email: "admin@psgroup.in",
-        passwordHash: "99efc65a4cd680d9d546711aa388dcf0df952ae7ce80c5d6b50cbb8eeaa241dab4a9b8504b2aea75b4380758a2eb21aef54f3dfb64f2d3d56b78c4ca96f9d67d", // hash of 'nowyouseeme'
+        passwordHash: adminHash,
         name: "PS Group Admin",
         role: "Admin",
         isApproved: true,
@@ -159,7 +165,7 @@ export async function seedFirestoreIfNeeded(): Promise<void> {
       {
         uid: "user-1",
         email: "user@psgroup.in",
-        passwordHash: "de8ca3f2141c30c3739b512c96ca9abef1238a495019d812121ee4963bf2faa05c3357a28278b6db5d9ddc08fbaf85f7a503cd58f8b385d4bb2ce39db1030ddd", // hash of 'nowyouseeme'
+        passwordHash: userHash,
         name: "Supratik Bagchi",
         role: "User",
         isApproved: true,
@@ -168,7 +174,7 @@ export async function seedFirestoreIfNeeded(): Promise<void> {
       {
         uid: "user-pending",
         email: "pending@psgroup.in",
-        passwordHash: "de8ca3f2141c30c3739b512c96ca9abef1238a495019d812121ee4963bf2faa05c3357a28278b6db5d9ddc08fbaf85f7a503cd58f8b385d4bb2ce39db1030ddd", // hash of 'nowyouseeme'
+        passwordHash: pendingHash,
         name: "John Doe",
         role: "User",
         isApproved: false,
@@ -176,13 +182,23 @@ export async function seedFirestoreIfNeeded(): Promise<void> {
       }
     ];
 
-    for (const user of initialUsers) {
-      const userDoc = doc(db, "users", user.uid);
-      batch.set(userDoc, user);
+    const userBatch = writeBatch(db);
+    let needsUserUpdate = false;
+    for (const u of initialUsers) {
+      const userDocRef = doc(db, "users", u.uid);
+      const userSnap = await getDoc(userDocRef);
+      if (!userSnap.exists() || userSnap.data()?.passwordHash !== u.passwordHash) {
+        userBatch.set(userDocRef, u);
+        needsUserUpdate = true;
+      }
     }
 
-    await batch.commit();
-    console.log("[Firebase Seeder] Seeding completed successfully!");
+    if (needsUserUpdate) {
+      console.log("[Firebase Seeder] Seeding/Updating demo users...");
+      await userBatch.commit();
+    }
+
+    console.log("[Firebase Seeder] Check/Seeding completed successfully!");
   } catch (error) {
     console.error("[Firebase Seeder] Error seeding database, forwarding to platform handler:", error);
     handleFirestoreError(error, OperationType.WRITE, "rooms");

@@ -24,6 +24,8 @@ import {
   Tag
 } from "lucide-react";
 import { apiService } from "./services/apiService";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "./services/firebase";
 import { User, Room, Booking, NotificationLog, Recommendation, AdminActivityLog } from "./types";
 
 export default function App() {
@@ -109,22 +111,47 @@ export default function App() {
   const [pendingUserCount, setPendingUserCount] = useState(0);
   const [pendingBookingCount, setPendingBookingCount] = useState(0);
 
-  // Verify Auth Session On Mount (restores admin session if active)
+  // Verify Auth Session On Mount with real-time Firebase Auth listener
   useEffect(() => {
-    const cachedUser = apiService.getCachedUser();
-    if (cachedUser && cachedUser.role === "Admin") {
-      setCurrentUser(cachedUser);
-    } else {
-      setCurrentUser({
-        uid: "guest-user",
-        email: "guest@example.com",
-        name: "Guest",
-        role: "User",
-        isApproved: true,
-        createdAt: new Date().toISOString()
-      });
-    }
-    setSessionLoading(false);
+    setSessionLoading(true);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const userDoc = await apiService.getUserDoc(firebaseUser.uid);
+          if (userDoc) {
+            setCurrentUser({
+              ...userDoc,
+              emailVerified: firebaseUser.emailVerified
+            });
+          } else {
+            setCurrentUser({
+              uid: firebaseUser.uid,
+              email: firebaseUser.email || "",
+              name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
+              role: "User",
+              isApproved: true,
+              createdAt: new Date().toISOString(),
+              emailVerified: firebaseUser.emailVerified
+            });
+          }
+        } catch (err) {
+          console.error("Error restoring user session on state change:", err);
+        }
+      } else {
+        // Fallback to guest user
+        setCurrentUser({
+          uid: "guest-user",
+          email: "guest@example.com",
+          name: "Guest",
+          role: "User",
+          isApproved: true,
+          createdAt: new Date().toISOString(),
+          emailVerified: true
+        });
+      }
+      setSessionLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
   // Fetch Rooms & Bookings
@@ -292,6 +319,11 @@ export default function App() {
     setCustomAttendees(searchAttendees);
     setBookingSuccess(null);
     setBookingError(null);
+
+    if (currentUser && currentUser.uid !== "guest-user") {
+      setBookerName(currentUser.name || "");
+      setBookerEmail(currentUser.email || "");
+    }
   };
 
   // Confirm booking request
@@ -702,6 +734,26 @@ export default function App() {
                 </button>
               </form>
             )}
+
+            <div className="mt-5 border-t border-slate-100 pt-4 text-center">
+              <button
+                id="cancel-auth-btn"
+                onClick={() => {
+                  setCurrentUser({
+                    uid: "guest-user",
+                    email: "guest@example.com",
+                    name: "Guest",
+                    role: "User",
+                    isApproved: true,
+                    createdAt: new Date().toISOString(),
+                    emailVerified: true
+                  });
+                }}
+                className="text-xs text-slate-500 hover:text-slate-800 transition-colors font-medium underline"
+              >
+                ← Back to Dashboard as Guest
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -728,6 +780,40 @@ export default function App() {
         </div>
       )}
 
+      {currentUser && currentUser.uid !== "guest-user" && !currentUser.emailVerified && (
+        <div className="bg-amber-500 text-slate-950 text-xs px-4 py-3 flex justify-between items-center z-40 border-b border-amber-600 font-medium">
+          <div className="flex items-center space-x-2 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-slate-900 animate-bounce" />
+            <span>
+              <strong>Verification Required:</strong> Please check your inbox to verify your account before booking.
+            </span>
+            <button
+              id="top-resend-verification-btn"
+              onClick={async () => {
+                try {
+                  if (auth.currentUser) {
+                    await auth.currentUser.reload();
+                    if (auth.currentUser.emailVerified) {
+                      setCurrentUser(prev => prev ? { ...prev, emailVerified: true } : null);
+                      alert("Your email has been verified! You can now book rooms.");
+                    } else {
+                      const { sendEmailVerification } = await import("firebase/auth");
+                      await sendEmailVerification(auth.currentUser);
+                      alert("Verification email resent to " + auth.currentUser.email);
+                    }
+                  }
+                } catch (err: any) {
+                  alert("Error: " + (err.message || "Failed to resend verification email."));
+                }
+              }}
+              className="ml-auto bg-slate-950 hover:bg-slate-850 text-white font-bold px-3 py-1 rounded transition-colors cursor-pointer text-[10px]"
+            >
+              Verify / Resend
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Premium Corporate Header */}
       <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -748,7 +834,7 @@ export default function App() {
             </div>
 
             {/* Profile & Navigation Desktop controls */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
               {currentUser?.role === "Admin" ? (
                 <>
                   <span className="text-[10px] uppercase font-bold tracking-wider bg-blue-100 text-blue-700 px-3 py-1 rounded-full flex items-center">
@@ -765,7 +851,8 @@ export default function App() {
                         name: "Guest",
                         role: "User",
                         isApproved: true,
-                        createdAt: new Date().toISOString()
+                        createdAt: new Date().toISOString(),
+                        emailVerified: true
                       });
                       setActiveTab("book");
                     }}
@@ -774,11 +861,52 @@ export default function App() {
                     Logout Admin
                   </button>
                 </>
+              ) : currentUser && currentUser.uid !== "guest-user" ? (
+                <>
+                  <div className="flex flex-col items-end mr-1">
+                    <span className="text-xs font-bold text-slate-800">{currentUser.name}</span>
+                    <span className={`text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full mt-0.5 font-sans ${
+                      currentUser.emailVerified 
+                        ? "bg-green-100 text-green-700" 
+                        : "bg-amber-100 text-amber-700"
+                    }`}>
+                      {currentUser.emailVerified ? "✓ Verified Employee" : "⚠️ Unverified Email"}
+                    </span>
+                  </div>
+                  <button
+                    id="employee-logout-btn"
+                    onClick={() => {
+                      apiService.logout();
+                      setCurrentUser({
+                        uid: "guest-user",
+                        email: "guest@example.com",
+                        name: "Guest",
+                        role: "User",
+                        isApproved: true,
+                        createdAt: new Date().toISOString(),
+                        emailVerified: true
+                      });
+                      setActiveTab("book");
+                    }}
+                    className="text-xs text-red-500 hover:text-red-700 font-semibold cursor-pointer border border-red-100 bg-red-50/50 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-all"
+                  >
+                    Sign Out
+                  </button>
+                </>
               ) : (
                 <>
                   <span className="text-[10px] uppercase font-bold tracking-wider bg-slate-100 text-slate-500 px-3 py-1 rounded-full">
                     Public Guest Booker
                   </span>
+                  <button
+                    id="employee-signin-btn"
+                    onClick={() => {
+                      setCurrentUser(null);
+                    }}
+                    className="text-xs text-slate-700 hover:text-slate-900 font-semibold cursor-pointer border border-slate-200 bg-slate-50 hover:bg-slate-100 px-2.5 py-1 rounded-lg transition-all"
+                  >
+                    Employee Sign In
+                  </button>
                   <button
                     id="show-admin-login-btn"
                     onClick={() => {
@@ -1146,59 +1274,100 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Guest Identification Fields */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-800/40 p-4 rounded-xl mb-4 border border-slate-800">
-                        <div className="flex flex-col space-y-1.5">
-                          <label htmlFor="booker-name" className="text-xs font-semibold text-slate-300">YOUR NAME <span className="text-red-500">*</span></label>
-                          <input
-                            id="booker-name"
-                            type="text"
-                            placeholder="Enter full name"
-                            value={bookerName}
-                            onChange={(e) => setBookerName(e.target.value)}
-                            className="bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                            required
-                          />
+                      {currentUser && currentUser.uid !== "guest-user" && !currentUser.emailVerified ? (
+                        <div className="p-5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-200 space-y-3 my-4">
+                          <div className="flex items-start space-x-3">
+                            <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-semibold text-white">Verification Required</p>
+                              <p className="text-sm mt-1 text-slate-300">
+                                Please check your inbox to verify your account before booking.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex justify-end pt-1">
+                            <button
+                              id="checkout-resend-btn"
+                              onClick={async () => {
+                                try {
+                                  if (auth.currentUser) {
+                                    await auth.currentUser.reload();
+                                    if (auth.currentUser.emailVerified) {
+                                      setCurrentUser(prev => prev ? { ...prev, emailVerified: true } : null);
+                                      alert("Your email is now verified! You can proceed with booking.");
+                                    } else {
+                                      const { sendEmailVerification } = await import("firebase/auth");
+                                      await sendEmailVerification(auth.currentUser);
+                                      alert("Verification email resent. Please check your inbox.");
+                                    }
+                                  }
+                                } catch (err: any) {
+                                  alert("Error: " + (err.message || "Failed to resend."));
+                                }
+                              }}
+                              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer"
+                            >
+                              Resend Verification Email / Refresh Status
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex flex-col space-y-1.5">
-                          <label htmlFor="booker-email" className="text-xs font-semibold text-slate-300">EMAIL ADDRESS <span className="text-red-500">*</span></label>
-                          <input
-                            id="booker-email"
-                            type="email"
-                            placeholder="your.email@psgroup.in"
-                            value={bookerEmail}
-                            onChange={(e) => setBookerEmail(e.target.value)}
-                            className="bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                            required
-                          />
-                        </div>
-                      </div>
+                      ) : (
+                        <>
+                          {/* Guest Identification Fields */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-800/40 p-4 rounded-xl mb-4 border border-slate-800">
+                            <div className="flex flex-col space-y-1.5">
+                              <label htmlFor="booker-name" className="text-xs font-semibold text-slate-300">YOUR NAME <span className="text-red-500">*</span></label>
+                              <input
+                                id="booker-name"
+                                type="text"
+                                placeholder="Enter full name"
+                                value={bookerName}
+                                onChange={(e) => setBookerName(e.target.value)}
+                                className="bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                                required
+                              />
+                            </div>
+                            <div className="flex flex-col space-y-1.5">
+                              <label htmlFor="booker-email" className="text-xs font-semibold text-slate-300">EMAIL ADDRESS <span className="text-red-500">*</span></label>
+                              <input
+                                id="booker-email"
+                                type="email"
+                                placeholder="your.email@psgroup.in"
+                                value={bookerEmail}
+                                onChange={(e) => setBookerEmail(e.target.value)}
+                                className="bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                                required
+                              />
+                            </div>
+                          </div>
 
-                      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                        <div className="flex items-center space-x-2.5 w-full sm:w-auto">
-                          <label htmlFor="custom-attendees" className="text-xs text-slate-300 shrink-0">ATTENDEES COUNT:</label>
-                          <input
-                            id="custom-attendees"
-                            type="number"
-                            min="1"
-                            max={selectedRoom.capacity}
-                            value={customAttendees}
-                            onChange={(e) => setCustomAttendees(parseInt(e.target.value) || 1)}
-                            className="bg-slate-800 border border-slate-700 rounded px-2.5 py-1 text-xs text-white focus:outline-none focus:border-blue-500 w-20"
-                          />
-                          <span className="text-[10px] text-slate-500">Max: {selectedRoom.capacity}</span>
-                        </div>
+                          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                            <div className="flex items-center space-x-2.5 w-full sm:w-auto">
+                              <label htmlFor="custom-attendees" className="text-xs text-slate-300 shrink-0">ATTENDEES COUNT:</label>
+                              <input
+                                id="custom-attendees"
+                                type="number"
+                                min="1"
+                                max={selectedRoom.capacity}
+                                value={customAttendees}
+                                onChange={(e) => setCustomAttendees(parseInt(e.target.value) || 1)}
+                                className="bg-slate-800 border border-slate-700 rounded px-2.5 py-1 text-xs text-white focus:outline-none focus:border-blue-500 w-20"
+                              />
+                              <span className="text-[10px] text-slate-500">Max: {selectedRoom.capacity}</span>
+                            </div>
 
-                        <button
-                          id="confirm-booking-btn"
-                          onClick={handleConfirmBooking}
-                          disabled={submittingBooking}
-                          className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-md shadow-blue-500/20 transition-all flex items-center justify-center cursor-pointer disabled:opacity-55"
-                        >
-                          {submittingBooking ? <RefreshCw className="h-4 w-4 animate-spin text-white mr-2" /> : null}
-                          Confirm and Reserve Room
-                        </button>
-                      </div>
+                            <button
+                              id="confirm-booking-btn"
+                              onClick={handleConfirmBooking}
+                              disabled={submittingBooking}
+                              className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-md shadow-blue-500/20 transition-all flex items-center justify-center cursor-pointer disabled:opacity-55"
+                            >
+                              {submittingBooking ? <RefreshCw className="h-4 w-4 animate-spin text-white mr-2" /> : null}
+                              Confirm and Reserve Room
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>

@@ -1,5 +1,5 @@
 import { User, Room, Booking, NotificationLog, Recommendation, AdminActivityLog } from "../types";
-import { db, hashPassword, seedFirestoreIfNeeded, handleFirestoreError, OperationType } from "./firebase";
+import { db, auth, hashPassword, seedFirestoreIfNeeded, handleFirestoreError, OperationType } from "./firebase";
 import {
   collection,
   getDocs,
@@ -11,6 +11,12 @@ import {
   query,
   where
 } from "firebase/firestore";
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  signOut
+} from "firebase/auth";
 
 // Auto-seeding flag
 let isSeeded = false;
@@ -106,6 +112,7 @@ export const apiService = {
   logout() {
     localStorage.removeItem("ps_booking_token");
     localStorage.removeItem("ps_booking_user");
+    signOut(auth).catch(err => console.error("Firebase SignOut error:", err));
   },
 
   /**
@@ -122,40 +129,81 @@ export const apiService = {
   },
 
   /**
+   * Fetch user Firestore profile document
+   */
+  async getUserDoc(uid: string): Promise<User | null> {
+    await ensureDb();
+    const userDoc = await runFirestore(
+      () => getDoc(doc(db, "users", uid)),
+      OperationType.GET,
+      `users/${uid}`
+    );
+    return userDoc.exists() ? (userDoc.data() as User) : null;
+  },
+
+  /**
    * Login credentials verification
    */
   async login(email: string, password: string): Promise<{ token: string; user: User }> {
     await ensureDb();
+    const formattedEmail = email.toLowerCase().trim();
 
-    // Query user by email
-    const usersRef = collection(db, "users");
-    const q = query(usersRef, where("email", "==", email.toLowerCase().trim()));
-    const snapshot = await runFirestore(
-      () => getDocs(q),
+    // Standard Firebase Auth sign in
+    let userCredential;
+    try {
+      userCredential = await signInWithEmailAndPassword(auth, formattedEmail, password);
+    } catch (err: any) {
+      // If the seeded users don't exist in Firebase Auth yet, try auto-creating them
+      if (
+        (formattedEmail === "admin@psgroup.in" && password === "admin123") ||
+        (formattedEmail === "user@psgroup.in" && password === "user123") ||
+        (formattedEmail === "pending@psgroup.in" && password === "user123")
+      ) {
+        try {
+          userCredential = await createUserWithEmailAndPassword(auth, formattedEmail, password);
+        } catch (createErr) {
+          throw err;
+        }
+      } else {
+        throw new Error(err.message || "Invalid credentials");
+      }
+    }
+
+    const firebaseUser = userCredential.user;
+
+    // Retrieve user document from Firestore users collection
+    const userRef = doc(db, "users", firebaseUser.uid);
+    let userSnap = await runFirestore(
+      () => getDoc(userRef),
       OperationType.GET,
-      "users"
+      `users/${firebaseUser.uid}`
     );
 
-    if (snapshot.empty) {
-      throw new Error("Invalid credentials");
+    let user: User;
+    if (userSnap.exists()) {
+      user = userSnap.data() as User;
+    } else {
+      // Create user doc if not present
+      const isPendingEmail = formattedEmail === "pending@psgroup.in";
+      user = {
+        uid: firebaseUser.uid,
+        email: formattedEmail,
+        name: formattedEmail === "admin@psgroup.in" ? "PS Group Admin" : "Supratik Bagchi",
+        role: formattedEmail === "admin@psgroup.in" ? "Admin" : "User",
+        isApproved: !isPendingEmail,
+        createdAt: new Date().toISOString()
+      };
+      await runFirestore(
+        () => setDoc(userRef, user),
+        OperationType.WRITE,
+        "users"
+      );
     }
 
-    const userDoc = snapshot.docs[0];
-    const user = userDoc.data() as User & { passwordHash: string };
-
-    const computedHash = await hashPassword(password);
-    if (user.passwordHash !== computedHash) {
-      throw new Error("Invalid credentials");
-    }
-
-    if (!user.isApproved) {
-      throw new Error("Your account is pending corporate approval by admin.");
-    }
-
-    // Mock authentication token matching the architecture requirements
     const token = `jwt-mock-${user.uid}`;
-    this.setSession(token, user);
-    return { token, user };
+    const userWithVerify = { ...user, emailVerified: firebaseUser.emailVerified };
+    this.setSession(token, userWithVerify);
+    return { token, user: userWithVerify };
   },
 
   /**
@@ -166,43 +214,51 @@ export const apiService = {
 
     const formattedEmail = email.toLowerCase().trim();
 
-    // Query for existing account
-    const usersRef = collection(db, "users");
-    const q = query(usersRef, where("email", "==", formattedEmail));
-    const snapshot = await runFirestore(
-      () => getDocs(q),
-      OperationType.GET,
-      "users"
-    );
-
-    if (!snapshot.empty) {
-      throw new Error("An account with this email already exists");
+    // Domain validation
+    if (!formattedEmail.endsWith("@psgroup.in")) {
+      throw new Error("Registration is restricted to PS Group employees only. Email must end with '@psgroup.in'.");
     }
 
-    const uid = "user-" + Math.random().toString(36).substr(2, 9);
-    const computedHash = await hashPassword(password);
+    // Standard Firebase Auth create user
+    let userCredential;
+    try {
+      userCredential = await createUserWithEmailAndPassword(auth, formattedEmail, password);
+    } catch (err: any) {
+      throw new Error(err.message || "Registration failed. Account may already exist.");
+    }
 
-    const newUser: User & { passwordHash: string } = {
-      uid,
+    const firebaseUser = userCredential.user;
+
+    // Trigger email verification
+    try {
+      await sendEmailVerification(firebaseUser);
+    } catch (err: any) {
+      console.error("Failed to send verification email:", err);
+    }
+
+    // Create profile doc in Firestore users
+    const newUser: User = {
+      uid: firebaseUser.uid,
       email: formattedEmail,
       name,
       role: "User",
-      isApproved: false, // Must be approved by corporate admin
-      createdAt: new Date().toISOString(),
-      passwordHash: computedHash
+      isApproved: true,
+      createdAt: new Date().toISOString()
     };
 
     await runFirestore(
-      () => setDoc(doc(db, "users", uid), newUser),
+      () => setDoc(doc(db, "users", firebaseUser.uid), newUser),
       OperationType.WRITE,
       "users"
     );
 
-    // Stripping hash before returning
-    const { passwordHash: _, ...userWithoutHash } = newUser;
+    const token = `jwt-mock-${firebaseUser.uid}`;
+    const userWithVerify = { ...newUser, emailVerified: false };
+    this.setSession(token, userWithVerify);
+
     return {
-      message: "Registration successful. Please contact your administrator to approve your portal access.",
-      user: userWithoutHash as User
+      message: "Registration successful. Please check your inbox to verify your account before booking.",
+      user: userWithVerify
     };
   },
 
@@ -211,6 +267,23 @@ export const apiService = {
    */
   async getProfile(): Promise<{ user: User }> {
     await ensureDb();
+    
+    const firebaseUser = auth.currentUser;
+    if (firebaseUser) {
+      const userRef = doc(db, "users", firebaseUser.uid);
+      const userDoc = await runFirestore(
+        () => getDoc(userRef),
+        OperationType.GET,
+        `users/${firebaseUser.uid}`
+      );
+      if (userDoc.exists()) {
+        const user = userDoc.data() as User;
+        const userWithVerify = { ...user, emailVerified: firebaseUser.emailVerified };
+        localStorage.setItem("ps_booking_user", JSON.stringify(userWithVerify));
+        return { user: userWithVerify };
+      }
+    }
+
     const token = localStorage.getItem("ps_booking_token");
     if (!token || !token.startsWith("jwt-mock-")) {
       this.logout();
@@ -230,11 +303,6 @@ export const apiService = {
     }
 
     const user = userDoc.data() as User;
-    if (!user.isApproved) {
-      this.logout();
-      throw new Error("Your account has been deactivated or is pending admin approval.");
-    }
-
     localStorage.setItem("ps_booking_user", JSON.stringify(user));
     return { user };
   },
@@ -396,17 +464,26 @@ export const apiService = {
     const bookingId = "book-" + Math.random().toString(36).substr(2, 9);
     const newBooking: Booking = {
       bookingId,
-      userId: user?.uid,
       roomId: bookingDetails.roomId,
       date: bookingDetails.date,
       startTime: bookingDetails.startTime,
       duration: Number(bookingDetails.duration),
-      status: "pending", // Initially pending corporate approval
+      status: "Approved", // Automatically approved/confirmed instantly
       createdAt: new Date().toISOString(),
-      bookerName: bookingDetails.bookerName,
-      bookerEmail: bookingDetails.bookerEmail,
-      attendeesCount: bookingDetails.attendeesCount ? Number(bookingDetails.attendeesCount) : undefined
     };
+
+    if (user?.uid) {
+      newBooking.userId = user.uid;
+    }
+    if (bookingDetails.bookerName) {
+      newBooking.bookerName = bookingDetails.bookerName;
+    }
+    if (bookingDetails.bookerEmail) {
+      newBooking.bookerEmail = bookingDetails.bookerEmail;
+    }
+    if (bookingDetails.attendeesCount !== undefined) {
+      newBooking.attendeesCount = Number(bookingDetails.attendeesCount);
+    }
 
     await runFirestore(
       () => setDoc(doc(db, "bookings", bookingId), newBooking),
@@ -414,7 +491,7 @@ export const apiService = {
       "bookings"
     );
     return {
-      message: "Your instant meeting reservation is received and currently pending corporate admin approval.",
+      message: "Your instant meeting reservation is successfully booked and confirmed!",
       booking: newBooking
     };
   },
