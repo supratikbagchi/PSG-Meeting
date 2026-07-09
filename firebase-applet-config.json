@@ -1,10 +1,11 @@
 {
-  "projectId": "carbon-ellipse-38kj5",
-  "appId": "1:293321657954:web:fead1b0627cd6b94fc8b3b",
-  "apiKey": "AIzaSyCpbuMKh1G-wM5JIlTaaaY_zm-uTyrfh3U",
-  "authDomain": "carbon-ellipse-38kj5.firebaseapp.com",
+  "projectId": "ps-group-meeting-room",
+  "appId": "1:205622002778:web:b978e75cb6b1239fc8c463",
+  "apiKey": "AIzaSyC9k9ji4Rq7iFK25pAYNlMlxnmq6LWQ4v0",
+  "authDomain": "ps-group-meeting-room.firebaseapp.com",
   "firestoreDatabaseId": "ai-studio-meetingroombooki-6c70cad5-253f-4c20-91e8-5b5e7507565f",
-  "storageBucket": "carbon-ellipse-38kj5.firebasestorage.app",
-  "messagingSenderId": "293321657954",
-  "measurementId": ""
+  "storageBucket": "ps-group-meeting-room.firebasestorage.app",
+  "messagingSenderId": "205622002778",
+  "measurementId": "",
+  "oAuthClientId": "205622002778-tqb9dbvfou0pr73k0kd93j9f86544pkv.apps.googleusercontent.com"
 }

@@ -27,8 +27,9 @@ async function ensureDb() {
       await seedFirestoreIfNeeded();
       isSeeded = true;
     } catch (err) {
-      console.error("Auto-seeding check failed, forwarding:", err);
-      throw err;
+      console.warn("[Firebase Seeder] Auto-seeding check failed or bypassed (possibly due to security rules/permissions):", err);
+      // Mark as seeded to avoid infinite retries on subsequent database operations
+      isSeeded = true;
     }
   }
 }

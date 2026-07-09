@@ -28,6 +28,35 @@ import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./services/firebase";
 import { User, Room, Booking, NotificationLog, Recommendation, AdminActivityLog } from "./types";
 
+// Helper to format Firestore/Firebase errors nicely for the UI
+function formatError(err: any): string {
+  if (!err) return "";
+  const message = err.message || String(err);
+  try {
+    if (message.trim().startsWith("{") && message.trim().endsWith("}")) {
+      const parsed = JSON.parse(message);
+      if (parsed.error) {
+        const errMsg = parsed.error;
+        if (errMsg.includes("permission") || errMsg.includes("Permission") || errMsg.includes("insufficient")) {
+          return "Access Denied: Missing or insufficient permissions. Please register and check your inbox to verify your account.";
+        }
+        return errMsg;
+      }
+    }
+  } catch (e) {}
+
+  if (message.includes("auth/invalid-credential") || message.includes("Invalid credentials")) {
+    return "Invalid corporate email address or password.";
+  }
+  if (message.includes("auth/email-already-in-use")) {
+    return "The email address is already in use by another corporate account.";
+  }
+  if (message.includes("auth/weak-password")) {
+    return "Password should be at least 6 characters long.";
+  }
+  return message;
+}
+
 export default function App() {
   // Session States
   const [currentUser, setCurrentUser] = useState<User | null>({
@@ -116,26 +145,38 @@ export default function App() {
     setSessionLoading(true);
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        try {
-          const userDoc = await apiService.getUserDoc(firebaseUser.uid);
-          if (userDoc) {
-            setCurrentUser({
-              ...userDoc,
-              emailVerified: firebaseUser.emailVerified
-            });
-          } else {
-            setCurrentUser({
-              uid: firebaseUser.uid,
-              email: firebaseUser.email || "",
-              name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
-              role: "User",
-              isApproved: true,
-              createdAt: new Date().toISOString(),
-              emailVerified: firebaseUser.emailVerified
-            });
+        if (firebaseUser.isAnonymous) {
+          setCurrentUser({
+            uid: "guest-user",
+            email: "guest@example.com",
+            name: "Guest",
+            role: "User",
+            isApproved: true,
+            createdAt: new Date().toISOString(),
+            emailVerified: true
+          });
+        } else {
+          try {
+            const userDoc = await apiService.getUserDoc(firebaseUser.uid);
+            if (userDoc) {
+              setCurrentUser({
+                ...userDoc,
+                emailVerified: firebaseUser.emailVerified
+              });
+            } else {
+              setCurrentUser({
+                uid: firebaseUser.uid,
+                email: firebaseUser.email || "",
+                name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
+                role: "User",
+                isApproved: true,
+                createdAt: new Date().toISOString(),
+                emailVerified: firebaseUser.emailVerified
+              });
+            }
+          } catch (err) {
+            console.error("Error restoring user session on state change:", err);
           }
-        } catch (err) {
-          console.error("Error restoring user session on state change:", err);
         }
       } else {
         // Fallback to guest user
@@ -161,7 +202,7 @@ export default function App() {
       const roomsData = await apiService.getRooms();
       setRooms(roomsData);
     } catch (err: any) {
-      setGlobalError(err.message || "Failed to load rooms");
+      setGlobalError(formatError(err));
     } finally {
       setRoomsLoading(false);
     }
@@ -174,7 +215,7 @@ export default function App() {
       setBookings(bookingsData);
       setPendingBookingCount(0);
     } catch (err: any) {
-      setGlobalError(err.message || "Failed to load bookings");
+      setGlobalError(formatError(err));
     } finally {
       setBookingsLoading(false);
     }
@@ -195,7 +236,7 @@ export default function App() {
       setAdminActivities(activities);
       setPendingUserCount(usersList.filter((u) => !u.isApproved).length);
     } catch (err: any) {
-      setGlobalError(err.message || "Failed to load admin logs");
+      setGlobalError(formatError(err));
     } finally {
       setAdminLoading(false);
     }
@@ -234,7 +275,7 @@ export default function App() {
       setSelectedRoom(null);
       setSelectedStartTime("");
     } catch (err: any) {
-      setBookingError(err.message || "Could not fetch available meeting slots");
+      setBookingError(formatError(err));
     } finally {
       setSearchingAvailability(false);
     }
@@ -256,7 +297,7 @@ export default function App() {
       setLoginEmail("");
       setLoginPassword("");
     } catch (err: any) {
-      setLoginError(err.message || "Authentication failed. Double check your input.");
+      setLoginError(formatError(err));
     } finally {
       setLoginLoading(false);
     }
@@ -274,7 +315,7 @@ export default function App() {
       setShowAdminLoginModal(false);
       setActiveTab("admin");
     } catch (err: any) {
-      setLoginError(err.message || "Access Denied. Invalid Admin credentials.");
+      setLoginError(formatError(err));
     } finally {
       setLoginLoading(false);
     }
@@ -300,7 +341,7 @@ export default function App() {
       setRegPassword("");
       setRegConfirmPassword("");
     } catch (err: any) {
-      setRegError(err.message || "Registration failed. Verify constraints.");
+      setRegError(formatError(err));
     } finally {
       setRegLoading(false);
     }
@@ -369,7 +410,7 @@ export default function App() {
       setSelectedRoom(null);
       setSelectedStartTime("");
     } catch (err: any) {
-      setBookingError(err.message || "Reservation failed");
+      setBookingError(formatError(err));
     } finally {
       setSubmittingBooking(false);
     }
@@ -382,7 +423,7 @@ export default function App() {
       await apiService.approveUser(userId, approve);
       fetchAdminData();
     } catch (err: any) {
-      setGlobalError(err.message || "Approval update failed");
+      setGlobalError(formatError(err));
     } finally {
       setAdminLoading(false);
     }
@@ -396,7 +437,7 @@ export default function App() {
       await apiService.approveUser(user.uid, user.isApproved, targetRole);
       fetchAdminData();
     } catch (err: any) {
-      setGlobalError(err.message || "Failed to update role");
+      setGlobalError(formatError(err));
     } finally {
       setAdminLoading(false);
     }
@@ -411,7 +452,7 @@ export default function App() {
       fetchBookingsData();
       triggerAvailabilityCheck();
     } catch (err: any) {
-      setGlobalError(err.message || "Failed to delete user account");
+      setGlobalError(formatError(err));
     } finally {
       setAdminLoading(false);
     }
@@ -426,7 +467,7 @@ export default function App() {
       fetchAdminData();
       triggerAvailabilityCheck();
     } catch (err: any) {
-      setGlobalError(err.message || "Failed to process booking status");
+      setGlobalError(formatError(err));
     } finally {
       setAdminLoading(false);
     }
@@ -484,7 +525,7 @@ export default function App() {
       fetchRoomsData();
       triggerAvailabilityCheck();
     } catch (err: any) {
-      setRoomActionError(err.message || "Failed to save room configuration");
+      setRoomActionError(formatError(err));
     }
   };
 
@@ -496,7 +537,7 @@ export default function App() {
       fetchBookingsData();
       triggerAvailabilityCheck();
     } catch (err: any) {
-      setGlobalError(err.message || "Deletion failed");
+      setGlobalError(formatError(err));
     }
   };
 
@@ -633,14 +674,6 @@ export default function App() {
                   {loginLoading ? <RefreshCw className="h-4 w-4 animate-spin text-blue-500 mr-2" /> : null}
                   Sign In to Portal
                 </button>
-
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-[11px] text-slate-600 mt-4 leading-relaxed">
-                  <p className="font-semibold text-slate-800 mb-1">💡 Demo Accounts Provided:</p>
-                  <ul className="list-disc pl-4 space-y-0.5 text-slate-500">
-                    <li><strong>Admin:</strong> admin@psgroup.in / <code className="bg-slate-200 px-1 rounded text-slate-700 font-mono">admin123</code></li>
-                    <li><strong>User:</strong> user@psgroup.in / <code className="bg-slate-200 px-1 rounded text-slate-700 font-mono">user123</code></li>
-                  </ul>
-                </div>
               </form>
             ) : (
               <form onSubmit={handleRegister} className="space-y-4">

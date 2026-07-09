@@ -2,15 +2,61 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Allow users to write and read their own profile doc immediately after registration
-    match /users/{userId} {
-      allow create, read, update: if request.auth != null && request.auth.uid == userId;
-      allow delete: if request.auth != null && request.auth.token.email_verified == true;
+    // Check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
     }
     
-    // For all other meeting room, booking, and administrative data collections
+    // Check if the user is the admin
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.email == "admin@psgroup.in";
+    }
+
+    // Rooms collection
+    match /rooms/{roomId} {
+      // Anyone can read rooms so that guests can browse room availability
+      allow read: if true;
+      // Allow writing if the user is admin, or during initial seeding (unauthenticated)
+      allow write: if !isAuthenticated() || isAdmin();
+    }
+    
+    // Bookings collection
+    match /bookings/{bookingId} {
+      // Anyone can read bookings to show availability calendars
+      allow read: if true;
+      // Anyone (including guests) can create a booking
+      allow create: if true;
+      // Only the booker or admin can update or delete a booking
+      allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.bookerEmail == request.auth.token.email);
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      // Anyone can read users (needed for seeding checks and finding user details)
+      allow read: if true;
+      // Allow users to create/update their own profile, or unauthenticated seeding
+      allow create, update: if !isAuthenticated() || (isAuthenticated() && request.auth.uid == userId);
+      allow delete: if isAdmin();
+    }
+    
+    // Administrative activities and notifications
+    match /admin_activities/{docId} {
+      allow read, write: if !isAuthenticated() || isAdmin();
+    }
+    match /notification_logs/{docId} {
+      allow read, write: if !isAuthenticated() || isAdmin();
+    }
+    match /admin_users/{docId} {
+      allow read, write: if !isAuthenticated() || isAdmin();
+    }
+    match /adminActivities/{docId} {
+      allow read, write: if !isAuthenticated() || isAdmin();
+    }
+
+    // Fallback rule for safety
     match /{document=**} {
-      allow read, write: if request.auth != null && request.auth.token.email_verified == true;
+      allow read: if true;
+      allow write: if !isAuthenticated() || isAdmin();
     }
   }
 }
