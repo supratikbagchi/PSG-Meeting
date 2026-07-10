@@ -59,15 +59,12 @@ function formatError(err: any): string {
 
 export default function App() {
   // Session States
-  const [currentUser, setCurrentUser] = useState<User | null>({
-    uid: "guest-user",
-    email: "guest@example.com",
-    name: "Guest",
-    role: "User",
-    isApproved: true,
-    createdAt: new Date().toISOString()
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    return apiService.getCachedUser();
   });
-  const [sessionLoading, setSessionLoading] = useState(false);
+  const [sessionLoading, setSessionLoading] = useState(() => {
+    return !apiService.getCachedUser();
+  });
 
   // View & Navigation States
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
@@ -142,29 +139,27 @@ export default function App() {
 
   // Verify Auth Session On Mount with real-time Firebase Auth listener
   useEffect(() => {
-    setSessionLoading(true);
+    if (!currentUser) {
+      setSessionLoading(true);
+    }
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         if (firebaseUser.isAnonymous) {
-          setCurrentUser({
-            uid: "guest-user",
-            email: "guest@example.com",
-            name: "Guest",
-            role: "User",
-            isApproved: true,
-            createdAt: new Date().toISOString(),
-            emailVerified: true
-          });
+          setCurrentUser(null);
+          localStorage.removeItem("ps_booking_user");
+          localStorage.removeItem("ps_booking_token");
         } else {
           try {
             const userDoc = await apiService.getUserDoc(firebaseUser.uid);
             if (userDoc) {
-              setCurrentUser({
+              const fullUser = {
                 ...userDoc,
                 emailVerified: firebaseUser.emailVerified
-              });
+              };
+              setCurrentUser(fullUser);
+              localStorage.setItem("ps_booking_user", JSON.stringify(fullUser));
             } else {
-              setCurrentUser({
+              const defaultUser = {
                 uid: firebaseUser.uid,
                 email: firebaseUser.email || "",
                 name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
@@ -172,23 +167,19 @@ export default function App() {
                 isApproved: true,
                 createdAt: new Date().toISOString(),
                 emailVerified: firebaseUser.emailVerified
-              });
+              };
+              setCurrentUser(defaultUser);
+              localStorage.setItem("ps_booking_user", JSON.stringify(defaultUser));
             }
           } catch (err) {
             console.error("Error restoring user session on state change:", err);
           }
         }
       } else {
-        // Fallback to guest user
-        setCurrentUser({
-          uid: "guest-user",
-          email: "guest@example.com",
-          name: "Guest",
-          role: "User",
-          isApproved: true,
-          createdAt: new Date().toISOString(),
-          emailVerified: true
-        });
+        // No user logged in! Setting to null instead of guest-user fallback.
+        setCurrentUser(null);
+        localStorage.removeItem("ps_booking_user");
+        localStorage.removeItem("ps_booking_token");
       }
       setSessionLoading(false);
     });
@@ -361,7 +352,7 @@ export default function App() {
     setBookingSuccess(null);
     setBookingError(null);
 
-    if (currentUser && currentUser.uid !== "guest-user") {
+    if (currentUser) {
       setBookerName(currentUser.name || "");
       setBookerEmail(currentUser.email || "");
     }
@@ -767,26 +758,6 @@ export default function App() {
                 </button>
               </form>
             )}
-
-            <div className="mt-5 border-t border-slate-100 pt-4 text-center">
-              <button
-                id="cancel-auth-btn"
-                onClick={() => {
-                  setCurrentUser({
-                    uid: "guest-user",
-                    email: "guest@example.com",
-                    name: "Guest",
-                    role: "User",
-                    isApproved: true,
-                    createdAt: new Date().toISOString(),
-                    emailVerified: true
-                  });
-                }}
-                className="text-xs text-slate-500 hover:text-slate-800 transition-colors font-medium underline"
-              >
-                ← Back to Dashboard as Guest
-              </button>
-            </div>
           </div>
         </div>
       </div>
@@ -813,7 +784,7 @@ export default function App() {
         </div>
       )}
 
-      {currentUser && currentUser.uid !== "guest-user" && !currentUser.emailVerified && (
+      {currentUser && !currentUser.emailVerified && (
         <div className="bg-amber-500 text-slate-950 text-xs px-4 py-3 flex justify-between items-center z-40 border-b border-amber-600 font-medium">
           <div className="flex items-center space-x-2 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8">
             <AlertTriangle className="h-4 w-4 shrink-0 text-slate-900 animate-bounce" />
@@ -878,15 +849,7 @@ export default function App() {
                     id="admin-logout-btn"
                     onClick={() => {
                       apiService.logout();
-                      setCurrentUser({
-                        uid: "guest-user",
-                        email: "guest@example.com",
-                        name: "Guest",
-                        role: "User",
-                        isApproved: true,
-                        createdAt: new Date().toISOString(),
-                        emailVerified: true
-                      });
+                      setCurrentUser(null);
                       setActiveTab("book");
                     }}
                     className="text-xs text-red-500 hover:text-red-700 font-semibold cursor-pointer border border-red-100 bg-red-50/50 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-all"
@@ -894,7 +857,7 @@ export default function App() {
                     Logout Admin
                   </button>
                 </>
-              ) : currentUser && currentUser.uid !== "guest-user" ? (
+              ) : currentUser ? (
                 <>
                   <div className="flex flex-col items-end mr-1">
                     <span className="text-xs font-bold text-slate-800">{currentUser.name}</span>
@@ -910,15 +873,7 @@ export default function App() {
                     id="employee-logout-btn"
                     onClick={() => {
                       apiService.logout();
-                      setCurrentUser({
-                        uid: "guest-user",
-                        email: "guest@example.com",
-                        name: "Guest",
-                        role: "User",
-                        isApproved: true,
-                        createdAt: new Date().toISOString(),
-                        emailVerified: true
-                      });
+                      setCurrentUser(null);
                       setActiveTab("book");
                     }}
                     className="text-xs text-red-500 hover:text-red-700 font-semibold cursor-pointer border border-red-100 bg-red-50/50 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-all"
@@ -926,35 +881,7 @@ export default function App() {
                     Sign Out
                   </button>
                 </>
-              ) : (
-                <>
-                  <span className="text-[10px] uppercase font-bold tracking-wider bg-slate-100 text-slate-500 px-3 py-1 rounded-full">
-                    Public Guest Booker
-                  </span>
-                  <button
-                    id="employee-signin-btn"
-                    onClick={() => {
-                      setCurrentUser(null);
-                    }}
-                    className="text-xs text-slate-700 hover:text-slate-900 font-semibold cursor-pointer border border-slate-200 bg-slate-50 hover:bg-slate-100 px-2.5 py-1 rounded-lg transition-all"
-                  >
-                    Employee Sign In
-                  </button>
-                  <button
-                    id="show-admin-login-btn"
-                    onClick={() => {
-                      setLoginEmail("");
-                      setLoginPassword("");
-                      setLoginError(null);
-                      setShowAdminLoginModal(true);
-                    }}
-                    className="text-xs text-blue-600 hover:text-blue-700 font-semibold cursor-pointer border border-blue-100 bg-blue-50/50 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition-all flex items-center"
-                  >
-                    <Shield className="w-3 h-3 mr-1" />
-                    Admin Sign In
-                  </button>
-                </>
-              )}
+              ) : null}
             </div>
           </div>
         </div>
@@ -1307,7 +1234,7 @@ export default function App() {
                         </div>
                       </div>
 
-                      {currentUser && currentUser.uid !== "guest-user" && !currentUser.emailVerified ? (
+                      {currentUser && !currentUser.emailVerified ? (
                         <div className="p-5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-200 space-y-3 my-4">
                           <div className="flex items-start space-x-3">
                             <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
@@ -1346,31 +1273,19 @@ export default function App() {
                         </div>
                       ) : (
                         <>
-                          {/* Guest Identification Fields */}
+                          {/* Booker Identification Details (Read-only as they are logged in) */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-800/40 p-4 rounded-xl mb-4 border border-slate-800">
                             <div className="flex flex-col space-y-1.5">
-                              <label htmlFor="booker-name" className="text-xs font-semibold text-slate-300">YOUR NAME <span className="text-red-500">*</span></label>
-                              <input
-                                id="booker-name"
-                                type="text"
-                                placeholder="Enter full name"
-                                value={bookerName}
-                                onChange={(e) => setBookerName(e.target.value)}
-                                className="bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                                required
-                              />
+                              <span className="text-xs font-semibold text-slate-400">YOUR NAME</span>
+                              <span className="text-sm font-semibold text-white bg-slate-900/60 border border-slate-800 rounded-lg px-3 py-2">
+                                {currentUser?.name || "Employee"}
+                              </span>
                             </div>
                             <div className="flex flex-col space-y-1.5">
-                              <label htmlFor="booker-email" className="text-xs font-semibold text-slate-300">EMAIL ADDRESS <span className="text-red-500">*</span></label>
-                              <input
-                                id="booker-email"
-                                type="email"
-                                placeholder="your.email@psgroup.in"
-                                value={bookerEmail}
-                                onChange={(e) => setBookerEmail(e.target.value)}
-                                className="bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                                required
-                              />
+                              <span className="text-xs font-semibold text-slate-400">EMAIL ADDRESS</span>
+                              <span className="text-sm font-semibold text-slate-300 bg-slate-900/60 border border-slate-800 rounded-lg px-3 py-2 font-mono">
+                                {currentUser?.email}
+                              </span>
                             </div>
                           </div>
 
