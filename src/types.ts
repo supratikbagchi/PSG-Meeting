@@ -26,6 +26,7 @@ export interface Booking {
   bookerName?: string;
   bookerEmail?: string;
   attendeesCount?: number;
+  reason: string;
 }
 
 export interface NotificationLog {

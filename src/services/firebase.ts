@@ -110,7 +110,7 @@ export async function seedFirestoreIfNeeded(): Promise<void> {
     const snapshot = await getDocs(roomsRef);
     
     // Compute hashes dynamically for user credentials
-    const adminHash = await hashPassword("admin123");
+    const adminHash = await hashPassword("QW!@12");
     const userHash = await hashPassword("user123");
     const pendingHash = await hashPassword("user123");
 

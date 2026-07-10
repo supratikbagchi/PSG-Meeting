@@ -122,6 +122,7 @@ export default function App() {
   // Booker Guest Info States
   const [bookerName, setBookerName] = useState(() => localStorage.getItem("ps_booker_name") || "");
   const [bookerEmail, setBookerEmail] = useState(() => localStorage.getItem("ps_booker_email") || "");
+  const [bookingReason, setBookingReason] = useState("");
   const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
 
   // Admin Manage Room Form
@@ -275,6 +276,20 @@ export default function App() {
   // Automatically fetch recommendations on initial layout load
   useEffect(() => {
     triggerAvailabilityCheck();
+
+    // Automatically wipe previous bookings once on start
+    const clearPreviousBookings = async () => {
+      if (!localStorage.getItem("ps_bookings_cleared_v2")) {
+        try {
+          await apiService.clearAllBookings();
+          localStorage.setItem("ps_bookings_cleared_v2", "true");
+          fetchBookingsData();
+        } catch (err) {
+          console.warn("Could not auto-clear previous bookings on startup:", err);
+        }
+      }
+    };
+    clearPreviousBookings();
   }, []);
 
   // Actions: User Authentication
@@ -351,6 +366,7 @@ export default function App() {
     setCustomAttendees(searchAttendees);
     setBookingSuccess(null);
     setBookingError(null);
+    setBookingReason("");
 
     if (currentUser) {
       setBookerName(currentUser.name || "");
@@ -363,6 +379,10 @@ export default function App() {
     if (!selectedRoom || !selectedStartTime) return;
     if (!bookerName.trim() || !bookerEmail.trim()) {
       setBookingError("Please provide your Name and Email address to complete your instant reservation.");
+      return;
+    }
+    if (!bookingReason.trim()) {
+      setBookingError("Reason for booking is mandatory and must be filled.");
       return;
     }
     setSubmittingBooking(true);
@@ -381,6 +401,7 @@ export default function App() {
         duration: searchDuration,
         bookerName: bookerName.trim(),
         bookerEmail: bookerEmail.trim(),
+        reason: bookingReason.trim(),
         attendeesCount: customAttendees,
         clientDate,
         clientTime,
@@ -400,6 +421,7 @@ export default function App() {
       // Clear selection
       setSelectedRoom(null);
       setSelectedStartTime("");
+      setBookingReason("");
     } catch (err: any) {
       setBookingError(formatError(err));
     } finally {
@@ -633,7 +655,6 @@ export default function App() {
                     id="login-email"
                     type="email"
                     required
-                    placeholder="name@example.com"
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
@@ -649,7 +670,6 @@ export default function App() {
                     id="login-pass"
                     type="password"
                     required
-                    placeholder="••••••••"
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
@@ -693,7 +713,6 @@ export default function App() {
                     id="reg-name"
                     type="text"
                     required
-                    placeholder="Supratik Bagchi"
                     value={regName}
                     onChange={(e) => setRegName(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
@@ -708,7 +727,6 @@ export default function App() {
                     id="reg-email"
                     type="email"
                     required
-                    placeholder="username@example.com"
                     value={regEmail}
                     onChange={(e) => setRegEmail(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
@@ -725,7 +743,6 @@ export default function App() {
                       id="reg-pass"
                       type="password"
                       required
-                      placeholder="••••••••"
                       value={regPassword}
                       onChange={(e) => setRegPassword(e.target.value)}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
@@ -739,7 +756,6 @@ export default function App() {
                       id="reg-confirm-pass"
                       type="password"
                       required
-                      placeholder="••••••••"
                       value={regConfirmPassword}
                       onChange={(e) => setRegConfirmPassword(e.target.value)}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
@@ -1289,6 +1305,21 @@ export default function App() {
                             </div>
                           </div>
 
+                          <div className="flex flex-col space-y-1.5 mb-5">
+                            <label htmlFor="booking-reason" className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                              Reason for Booking <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              id="booking-reason"
+                              type="text"
+                              required
+                              value={bookingReason}
+                              onChange={(e) => setBookingReason(e.target.value)}
+                              className="w-full px-3.5 py-2.5 bg-slate-850 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500 transition-all"
+                            />
+                            <p className="text-[10px] text-slate-500">⚠️ Entering a reservation reason is mandatory for corporate tracking.</p>
+                          </div>
+
                           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                             <div className="flex items-center space-x-2.5 w-full sm:w-auto">
                               <label htmlFor="custom-attendees" className="text-xs text-slate-300 shrink-0">ATTENDEES COUNT:</label>
@@ -1373,6 +1404,7 @@ export default function App() {
                         <tr>
                           <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Room Name</th>
                           <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Booked By</th>
+                          <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Reason</th>
                           <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Date</th>
                           <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Start Time</th>
                           <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Duration</th>
@@ -1392,6 +1424,9 @@ export default function App() {
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="font-medium text-slate-800">{booking.bookerName || "Guest User"}</div>
                                 <div className="text-xs text-slate-400 font-mono">{booking.bookerEmail || "guest@example.com"}</div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap max-w-xs truncate text-slate-700 font-medium" title={booking.reason}>
+                                {booking.reason || "Corporate Meeting"}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-slate-600">{booking.date}</td>
                               <td className="px-6 py-4 whitespace-nowrap font-mono font-medium text-blue-600">{booking.startTime}</td>
@@ -1494,6 +1529,41 @@ export default function App() {
                     ))}
                   </div>
                 )}
+              </div>
+
+              {/* Database Maintenance */}
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <div className="sm:flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
+                  <div>
+                    <h3 className="font-display font-semibold text-slate-900 text-lg">Database & Maintenance</h3>
+                    <p className="text-xs text-slate-500">Manage global bookings and clean up past records.</p>
+                  </div>
+                  <button
+                    id="admin-clear-bookings-btn"
+                    onClick={async () => {
+                      if (confirm("Are you sure you want to permanently delete all previous bookings? This cannot be undone.")) {
+                        try {
+                          setAdminLoading(true);
+                          await apiService.clearAllBookings();
+                          alert("All bookings have been successfully removed.");
+                          fetchBookingsData();
+                          fetchAdminData();
+                        } catch (err: any) {
+                          alert("Failed to clear bookings: " + err.message);
+                        } finally {
+                          setAdminLoading(false);
+                        }
+                      }
+                    }}
+                    className="mt-2 sm:mt-0 inline-flex items-center px-4 py-2 bg-red-600 hover:bg-red-750 text-white font-bold text-xs rounded-lg shadow cursor-pointer transition-all animate-pulse"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                    Wipe All Bookings
+                  </button>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Clicking this button will permanently delete all meeting reservations from Firestore, allowing you to start with a fresh booking schedule.
+                </p>
               </div>
             </motion.div>
           )}
@@ -1658,7 +1728,6 @@ export default function App() {
                     id="admin-id-input"
                     type="text"
                     required
-                    placeholder="Enter Admin ID"
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 focus:bg-white transition-all text-slate-950 font-mono text-xs"
@@ -1671,7 +1740,6 @@ export default function App() {
                     id="admin-password-input"
                     type="password"
                     required
-                    placeholder="••••••••"
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 focus:bg-white transition-all text-slate-950"

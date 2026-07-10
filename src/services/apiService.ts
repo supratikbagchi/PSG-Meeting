@@ -9,7 +9,8 @@ import {
   updateDoc,
   deleteDoc,
   query,
-  where
+  where,
+  writeBatch
 } from "firebase/firestore";
 import {
   signInWithEmailAndPassword,
@@ -155,8 +156,23 @@ export const apiService = {
       userCredential = await signInWithEmailAndPassword(auth, formattedEmail, password);
     } catch (err: any) {
       // If the seeded users don't exist in Firebase Auth yet, try auto-creating them
-      if (
-        (formattedEmail === "admin@psgroup.in" && password === "admin123") ||
+      if (formattedEmail === "admin@psgroup.in" && password === "QW!@12") {
+        try {
+          // If the password was changed but the firebase auth still has "admin123", try to login with "admin123" and update it
+          const { updatePassword } = await import("firebase/auth");
+          userCredential = await signInWithEmailAndPassword(auth, formattedEmail, "admin123");
+          if (userCredential.user) {
+            await updatePassword(userCredential.user, "QW!@12");
+          }
+        } catch (updateErr) {
+          try {
+            // Otherwise, they might not exist yet, try creating them
+            userCredential = await createUserWithEmailAndPassword(auth, formattedEmail, password);
+          } catch (createErr) {
+            throw err;
+          }
+        }
+      } else if (
         (formattedEmail === "user@psgroup.in" && password === "user123") ||
         (formattedEmail === "pending@psgroup.in" && password === "user123")
       ) {
@@ -430,11 +446,16 @@ export const apiService = {
     duration: number;
     bookerName: string;
     bookerEmail: string;
+    reason: string;
     attendeesCount?: number;
     clientDate?: string;
     clientTime?: string;
   }): Promise<{ message: string; booking: Booking }> {
     await ensureDb();
+
+    if (!bookingDetails.reason || !bookingDetails.reason.trim()) {
+      throw new Error("Reason for booking is mandatory and must be filled.");
+    }
 
     const user = this.getCachedUser();
 
@@ -471,6 +492,7 @@ export const apiService = {
       duration: Number(bookingDetails.duration),
       status: "Approved", // Automatically approved/confirmed instantly
       createdAt: new Date().toISOString(),
+      reason: bookingDetails.reason.trim(),
     };
 
     if (user?.uid) {
@@ -802,5 +824,23 @@ export const apiService = {
 
     logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     return logs;
+  },
+
+  /**
+   * Delete all bookings from Firestore
+   */
+  async clearAllBookings(): Promise<void> {
+    await ensureDb();
+    const bookingsSnapshot = await runFirestore(
+      () => getDocs(collection(db, "bookings")),
+      OperationType.GET,
+      "bookings"
+    );
+    const batch = writeBatch(db);
+    bookingsSnapshot.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    await batch.commit();
+    await addAdminActivity("Clear All Bookings", "Permanently removed all meeting room reservation records from the database");
   }
 };
