@@ -67,7 +67,7 @@ export default function App() {
   });
 
   // View & Navigation States
-  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authMode, setAuthMode] = useState<"login" | "register" | "forgot">("login");
   const [activeTab, setActiveTab] = useState<"book" | "my-bookings" | "admin">("book");
 
   // Core Lists
@@ -88,6 +88,12 @@ export default function App() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
+
+  // Forgot Password Form
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotError, setForgotError] = useState<string | null>(null);
+  const [forgotSuccess, setForgotSuccess] = useState<string | null>(null);
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   const [regName, setRegName] = useState("");
   const [regEmail, setRegEmail] = useState("");
@@ -293,6 +299,22 @@ export default function App() {
   }, []);
 
   // Actions: User Authentication
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError(null);
+    setForgotSuccess(null);
+    setForgotLoading(true);
+    try {
+      await apiService.sendPasswordReset(forgotEmail);
+      setForgotSuccess("A password reset link has been sent to your email address!");
+      setForgotEmail("");
+    } catch (err: any) {
+      setForgotError(formatError(err));
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
@@ -603,42 +625,105 @@ export default function App() {
           </div>
 
           <div className="p-6 sm:p-8">
-            <div className="flex border-b border-slate-200 mb-6">
-              <button
-                id="login-tab-btn"
-                onClick={() => {
-                  setAuthMode("login");
-                  setLoginError(null);
-                  setRegError(null);
-                }}
-                className={`flex-1 pb-3 text-center font-medium text-sm transition-all relative ${
-                  authMode === "login" ? "text-slate-900 font-semibold" : "text-slate-400 hover:text-slate-600"
-                }`}
-              >
-                Sign In
-                {authMode === "login" && (
-                  <motion.div layoutId="auth-tab-bar" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
-                )}
-              </button>
-              <button
-                id="register-tab-btn"
-                onClick={() => {
-                  setAuthMode("register");
-                  setLoginError(null);
-                  setRegError(null);
-                }}
-                className={`flex-1 pb-3 text-center font-medium text-sm transition-all relative ${
-                  authMode === "register" ? "text-slate-900 font-semibold" : "text-slate-400 hover:text-slate-600"
-                }`}
-              >
-                Register
-                {authMode === "register" && (
-                  <motion.div layoutId="auth-tab-bar" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
-                )}
-              </button>
-            </div>
+            {authMode !== "forgot" && (
+              <div className="flex border-b border-slate-200 mb-6">
+                <button
+                  id="login-tab-btn"
+                  onClick={() => {
+                    setAuthMode("login");
+                    setLoginError(null);
+                    setRegError(null);
+                  }}
+                  className={`flex-1 pb-3 text-center font-medium text-sm transition-all relative ${
+                    authMode === "login" ? "text-slate-900 font-semibold" : "text-slate-400 hover:text-slate-600"
+                  }`}
+                >
+                  Sign In
+                  {authMode === "login" && (
+                    <motion.div layoutId="auth-tab-bar" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
+                  )}
+                </button>
+                <button
+                  id="register-tab-btn"
+                  onClick={() => {
+                    setAuthMode("register");
+                    setLoginError(null);
+                    setRegError(null);
+                  }}
+                  className={`flex-1 pb-3 text-center font-medium text-sm transition-all relative ${
+                    authMode === "register" ? "text-slate-900 font-semibold" : "text-slate-400 hover:text-slate-600"
+                  }`}
+                >
+                  Register
+                  {authMode === "register" && (
+                    <motion.div layoutId="auth-tab-bar" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
+                  )}
+                </button>
+              </div>
+            )}
 
-            {authMode === "login" ? (
+            {authMode === "forgot" ? (
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                <div className="mb-4">
+                  <h3 className="text-slate-900 font-display font-semibold text-lg mb-1">Forgot Password</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Enter your registered email address, and we'll send you a secure link to reset your account credentials instantly.
+                  </p>
+                </div>
+
+                {forgotError && (
+                  <div className="p-3.5 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-2.5 text-xs text-red-700">
+                    <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5 animate-pulse" />
+                    <span>{forgotError}</span>
+                  </div>
+                )}
+
+                {forgotSuccess && (
+                  <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-lg flex items-start space-x-2.5 text-xs text-emerald-800">
+                    <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <span>{forgotSuccess}</span>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label htmlFor="forgot-email" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    Email Address
+                  </label>
+                  <input
+                    id="forgot-email"
+                    type="email"
+                    required
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
+                  />
+                </div>
+
+                <button
+                  id="submit-forgot-btn"
+                  type="submit"
+                  disabled={forgotLoading}
+                  className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-850 text-white rounded-lg text-sm font-semibold shadow-md transition-all flex justify-center items-center cursor-pointer disabled:opacity-55"
+                >
+                  {forgotLoading ? <RefreshCw className="h-4 w-4 animate-spin text-blue-500 mr-2" /> : null}
+                  Send Password Reset Link
+                </button>
+
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode("login");
+                      setForgotError(null);
+                      setForgotSuccess(null);
+                    }}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-all cursor-pointer inline-flex items-center"
+                  >
+                    ← Back to Sign In
+                  </button>
+                </div>
+              </form>
+            ) : authMode === "login" ? (
               <form onSubmit={handleLogin} className="space-y-4">
                 {loginError && (
                   <div className="p-3.5 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-2.5 text-xs text-red-700">
@@ -663,9 +748,23 @@ export default function App() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label htmlFor="login-pass" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                    Password
-                  </label>
+                  <div className="flex justify-between items-center">
+                    <label htmlFor="login-pass" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                      Password
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthMode("forgot");
+                        setForgotEmail(loginEmail);
+                        setForgotError(null);
+                        setForgotSuccess(null);
+                      }}
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-all cursor-pointer"
+                    >
+                      Forgot Password?
+                    </button>
+                  </div>
                   <input
                     id="login-pass"
                     type="password"

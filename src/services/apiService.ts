@@ -16,7 +16,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendEmailVerification,
-  signOut
+  signOut,
+  sendPasswordResetEmail
 } from "firebase/auth";
 
 // Auto-seeding flag
@@ -99,6 +100,36 @@ async function addAdminActivity(action: string, details: string): Promise<void> 
 
 export const apiService = {
   // ==================== AUTH SERVICE ====================
+
+  /**
+   * Send a password reset email to an already registered address
+   */
+  async sendPasswordReset(email: string): Promise<void> {
+    await ensureDb();
+    const formattedEmail = email.toLowerCase().trim();
+    if (!formattedEmail) {
+      throw new Error("Email address is required.");
+    }
+
+    // Check if user exists in the Firestore database to make sure it's an "already registered email address"
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("email", "==", formattedEmail));
+    const querySnapshot = await runFirestore(
+      () => getDocs(q),
+      OperationType.GET,
+      "users"
+    );
+
+    if (querySnapshot.empty) {
+      throw new Error("This email is not registered in our database.");
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, formattedEmail);
+    } catch (err: any) {
+      throw new Error(err.message || "Failed to send password reset email.");
+    }
+  },
 
   /**
    * Set user credentials in localStorage
