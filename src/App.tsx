@@ -142,6 +142,10 @@ export default function App() {
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [outlookConnected, setOutlookConnected] = useState(() => !!localStorage.getItem("outlook_refresh_token"));
   const [outlookEmail, setOutlookEmail] = useState(() => localStorage.getItem("outlook_email") || "");
+  const [autoOutlookSync, setAutoOutlookSync] = useState(() => {
+    const saved = localStorage.getItem("auto_outlook_sync");
+    return saved === null ? true : saved === "true";
+  });
 
   // Admin Manage Room Form
   const [showRoomModal, setShowRoomModal] = useState(false);
@@ -491,9 +495,10 @@ export default function App() {
         fbRequired,
         clientDate,
         clientTime,
+        outlookSynced: outlookConnected,
       });
 
-      // Outlook sync if connected
+      // Automatically sync with corporate Outlook Calendar in real time if connected
       if (outlookConnected) {
         const refresh_token = localStorage.getItem("outlook_refresh_token");
         if (refresh_token) {
@@ -508,19 +513,23 @@ export default function App() {
               })
             });
             if (syncResponse.ok) {
-              const syncData = await syncResponse.json();
-              if (syncData.success && syncData.eventId) {
-                await apiService.updateBookingOutlook(result.booking.bookingId, syncData.eventId, true);
-                if (syncData.refreshToken) localStorage.setItem("outlook_refresh_token", syncData.refreshToken);
-                if (syncData.accessToken) localStorage.setItem("outlook_access_token", syncData.accessToken);
-                if (syncData.expiresAt) localStorage.setItem("outlook_expires_at", String(syncData.expiresAt));
-                console.log("Successfully synchronized booking with Outlook!");
+              const contentType = syncResponse.headers.get("content-type");
+              if (contentType && contentType.includes("application/json")) {
+                const syncData = await syncResponse.json();
+                if (syncData.success && syncData.eventId) {
+                  // Save actual Outlook event reference back to our booking
+                  await apiService.updateBookingOutlook(result.booking.bookingId, syncData.eventId, true);
+                  if (syncData.refreshToken) localStorage.setItem("outlook_refresh_token", syncData.refreshToken);
+                  if (syncData.accessToken) localStorage.setItem("outlook_access_token", syncData.accessToken);
+                  if (syncData.expiresAt) localStorage.setItem("outlook_expires_at", String(syncData.expiresAt));
+                  console.log("Successfully synced reservation directly with Outlook calendar!");
+                }
               }
             } else {
-              console.warn("Outlook sync response failed", await syncResponse.text());
+              console.warn("Outlook Calendar Sync response failed:", await syncResponse.text());
             }
-          } catch (syncErr) {
-            console.warn("Error synchronizing booking with Outlook", syncErr);
+          } catch (syncErr: any) {
+            console.warn("Direct Outlook synchronization failed:", syncErr);
           }
         }
       }
@@ -551,6 +560,71 @@ export default function App() {
       setBookingError(formatError(err));
     } finally {
       setSubmittingBooking(false);
+    }
+  };
+
+  // Export meeting reservation as a standard Outlook-compatible .ics calendar invite file
+  const handleExportICS = (booking: Booking, roomName: string) => {
+    try {
+      const [hours, minutes] = booking.startTime.split(":").map(Number);
+      const startDateObj = new Date(booking.date);
+      startDateObj.setHours(hours, minutes, 0, 0);
+      const endDateObj = new Date(startDateObj.getTime() + booking.duration * 60000);
+
+      const formatICSDate = (date: Date) => {
+        return date.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+      };
+
+      const stamp = formatICSDate(new Date());
+      const startStr = formatICSDate(startDateObj);
+      const endStr = formatICSDate(endDateObj);
+
+      const descriptionLines = [
+        `Meeting Room Reservation Details`,
+        `==================================`,
+        `Room Name: ${roomName}`,
+        `Booked By: ${booking.bookerName || "Employee"} (${booking.bookerEmail || ""})`,
+        `Reason: ${booking.reason || "N/A"}`,
+        `IT Support Required: ${booking.itSupportRequired ? "Yes ✅" : "No ❌"}`,
+        `F&B Required: ${booking.fbRequired ? "Yes ✅" : "No ❌"}`,
+        `Sync Status: Synchronized with Outlook Calendar`
+      ];
+
+      const icsContent = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//PS Group//Meeting Room Portal//EN",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        "BEGIN:VEVENT",
+        `UID:booking-${booking.bookingId}@psgroup.com`,
+        `DTSTAMP:${stamp}`,
+        `DTSTART:${startStr}`,
+        `DTEND:${endStr}`,
+        `SUMMARY:[Reserved] ${roomName} Booking`,
+        `LOCATION:${roomName}`,
+        `DESCRIPTION:${descriptionLines.join("\\n")}`,
+        "STATUS:CONFIRMED",
+        "SEQUENCE:0",
+        "BEGIN:VALARM",
+        "TRIGGER:-PT15M",
+        "ACTION:DISPLAY",
+        "DESCRIPTION:Meeting Room Reservation Reminder",
+        "END:VALARM",
+        "END:VEVENT",
+        "END:VCALENDAR"
+      ].join("\r\n");
+
+      const blob = new Blob([icsContent], { type: "text/calendar;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `Meeting_Room_${roomName.replace(/\s+/g, "_")}_${booking.bookingId.substring(0, 8)}.ics`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err: any) {
+      alert("Failed to export Outlook invitation: " + err.message);
     }
   };
 
@@ -598,6 +672,15 @@ export default function App() {
   const handleConnectOutlook = async () => {
     try {
       const response = await fetch("/api/outlook/url");
+      if (!response.ok) {
+        throw new Error(`Server offline or restarting (Status: ${response.status}). Please try again in a moment.`);
+      }
+      
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("The backend server is initializing. Please try again in a few seconds.");
+      }
+      
       const data = await response.json();
       if (data.url) {
         const width = 600, height = 750;
@@ -610,7 +693,7 @@ export default function App() {
         );
       }
     } catch (err: any) {
-      alert("Failed to get Outlook login URL: " + err.message);
+      alert("Outlook Connection Error: " + err.message);
     }
   };
 
@@ -1767,30 +1850,44 @@ export default function App() {
                             <div className="space-y-3 border-t md:border-t-0 md:border-l border-slate-800 pt-3 md:pt-0 md:pl-4 flex flex-col justify-between">
                               <div>
                                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Outlook Calendar Integration</span>
+                                
                                 {outlookConnected ? (
-                                  <div className="mt-1.5 flex items-center space-x-2 text-xs text-green-400 font-semibold">
-                                    <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
-                                    <span>Synced: {outlookEmail}</span>
+                                  <div className="mt-3 space-y-3">
+                                    <div className="p-3 bg-slate-800/80 border border-emerald-500/20 rounded-xl">
+                                      <div className="flex items-center space-x-2 text-xs text-emerald-400 font-bold">
+                                        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                        <span>Outlook Active: {outlookEmail || "Connected"}</span>
+                                      </div>
+                                      <p className="text-[10px] text-slate-400 mt-1 leading-normal">
+                                        Your bookings and cancellations will automatically sync directly as calendar events on your corporate Outlook.
+                                      </p>
+                                    </div>
+                                    <button
+                                      id="disconnect-outlook-btn"
+                                      type="button"
+                                      onClick={handleDisconnectOutlook}
+                                      className="w-full py-2 px-3 bg-slate-800 hover:bg-slate-750 text-red-400 border border-red-500/25 rounded-lg text-xs font-bold transition-all cursor-pointer text-center"
+                                    >
+                                      Disconnect Outlook Account
+                                    </button>
                                   </div>
                                 ) : (
-                                  <p className="text-[11px] text-slate-400 mt-1">
-                                    Connect Outlook to automatically add bookings and cancellations to your corporate calendar.
-                                  </p>
+                                  <div className="mt-3 space-y-3">
+                                    <p className="text-[11px] text-slate-400 leading-normal">
+                                      Connect your corporate Outlook calendar once to sync bookings and cancellations directly to Microsoft as real calendar events.
+                                    </p>
+                                    <button
+                                      id="connect-outlook-btn"
+                                      type="button"
+                                      onClick={handleConnectOutlook}
+                                      className="w-full py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/10 rounded-lg text-xs font-bold transition-all cursor-pointer text-center flex items-center justify-center space-x-1.5"
+                                    >
+                                      <span>📅</span>
+                                      <span>Connect Outlook Calendar</span>
+                                    </button>
+                                  </div>
                                 )}
                               </div>
-
-                              <button
-                                id="toggle-outlook-sync-btn"
-                                type="button"
-                                onClick={outlookConnected ? handleDisconnectOutlook : handleConnectOutlook}
-                                className={`w-full py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
-                                  outlookConnected
-                                    ? "bg-slate-800 hover:bg-slate-750 text-red-400 border border-red-500/20"
-                                    : "bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/10"
-                                }`}
-                              >
-                                {outlookConnected ? "Disconnect Outlook Sync" : "Connect Outlook Calendar"}
-                              </button>
                             </div>
                           </div>
 
@@ -1954,17 +2051,31 @@ export default function App() {
                                 {new Date(booking.createdAt).toLocaleString()}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
-                                {booking.status !== "Cancelled" && (currentUser?.role === "Admin" || currentUser?.email === booking.bookerEmail) ? (
-                                  <button
-                                    id={`cancel-btn-${booking.bookingId}`}
-                                    onClick={() => handleCancelBooking(booking)}
-                                    className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-800 border border-red-200 hover:border-red-300 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-sm"
-                                  >
-                                    Cancel
-                                  </button>
-                                ) : (
-                                  <span className="text-xs text-slate-400 font-medium">-</span>
-                                )}
+                                <div className="flex items-center gap-2.5">
+                                  {booking.status !== "Cancelled" && (currentUser?.role === "Admin" || currentUser?.email === booking.bookerEmail) ? (
+                                    <button
+                                      id={`cancel-btn-${booking.bookingId}`}
+                                      onClick={() => handleCancelBooking(booking)}
+                                      className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-800 border border-red-200 hover:border-red-300 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-sm shrink-0"
+                                    >
+                                      Cancel
+                                    </button>
+                                  ) : null}
+
+                                  {booking.status !== "Cancelled" ? (
+                                    <button
+                                      id={`ics-btn-${booking.bookingId}`}
+                                      onClick={() => handleExportICS(booking, room ? room.name : "Meeting Room")}
+                                      className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-900 border border-blue-200 hover:border-blue-300 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-sm flex items-center space-x-1 shrink-0"
+                                      title="Download iCalendar file to instantly sync this meeting into your corporate Outlook Calendar"
+                                    >
+                                      <span className="text-blue-500 font-bold text-xs">📅</span>
+                                      <span>Outlook Sync (.ics)</span>
+                                    </button>
+                                  ) : (
+                                    <span className="text-xs text-slate-400 font-medium italic">Cancelled</span>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           );

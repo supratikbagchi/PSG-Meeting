@@ -940,7 +940,9 @@ async function startServer() {
 
   app.get("/api/outlook/url", (req, res) => {
     const clientId = process.env.MICROSOFT_CLIENT_ID || "3eef25b2-3c22-484b-97e3-086576b2512f";
-    const redirectUri = `${req.protocol}://${req.get("host")}/auth/microsoft/callback`;
+    const host = req.get("host") || "localhost:3000";
+    const protocol = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
+    const redirectUri = `${protocol}://${host}/auth/microsoft/callback`;
     const scopes = ["offline_access", "Calendars.ReadWrite", "User.Read"].join(" ");
 
     const params = new URLSearchParams({
@@ -971,7 +973,9 @@ async function startServer() {
 
     const clientId = process.env.MICROSOFT_CLIENT_ID || "3eef25b2-3c22-484b-97e3-086576b2512f";
     const clientSecret = process.env.MICROSOFT_CLIENT_SECRET || "placeholder-secret";
-    const redirectUri = `${req.protocol}://${req.get("host")}/auth/microsoft/callback`;
+    const host = req.get("host") || "localhost:3000";
+    const protocol = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
+    const redirectUri = `${protocol}://${host}/auth/microsoft/callback`;
 
     try {
       const tokenResponse = await fetch("https://login.microsoftonline.com/common/oauth2/v2.0/token", {
