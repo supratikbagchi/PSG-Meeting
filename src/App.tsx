@@ -57,6 +57,28 @@ function formatError(err: any): string {
   return message;
 }
 
+// Utility to retrieve API URL base for Microsoft Outlook Integration when deployed on Vercel
+function getApiUrl(path: string): string {
+  // Option to configure a custom API URL in environment variables
+  const envApiUrl = (import.meta as any).env?.VITE_API_URL;
+  if (envApiUrl) {
+    return `${envApiUrl.replace(/\/$/, "")}${path}`;
+  }
+
+  // Fallback to the live Cloud Run production container URL if hosted externally (e.g., Vercel)
+  const isCloudRunOrLocal =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname.endsWith("run.app");
+
+  if (!isCloudRunOrLocal) {
+    const cloudRunBase = "https://ais-pre-jeqaeefd3h7gpit4pq6mfe-563717408510.asia-east1.run.app";
+    return `${cloudRunBase}${path}`;
+  }
+
+  return path;
+}
+
 export default function App() {
   // Session States
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -503,7 +525,7 @@ export default function App() {
         const refresh_token = localStorage.getItem("outlook_refresh_token");
         if (refresh_token) {
           try {
-            const syncResponse = await fetch("/api/outlook/create-event", {
+            const syncResponse = await fetch(getApiUrl("/api/outlook/create-event"), {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -639,7 +661,7 @@ export default function App() {
         const refresh_token = localStorage.getItem("outlook_refresh_token");
         if (refresh_token) {
           try {
-            const deleteResponse = await fetch("/api/outlook/delete-event", {
+            const deleteResponse = await fetch(getApiUrl("/api/outlook/delete-event"), {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -671,14 +693,14 @@ export default function App() {
   // Outlook Calendar Handlers
   const handleConnectOutlook = async () => {
     try {
-      let response = await fetch("/api/outlook/url");
+      let response = await fetch(getApiUrl("/api/outlook/url"));
       
       // Automatic retry once if the server is starting up or returning non-JSON
       let contentType = response.headers.get("content-type");
       if (!response.ok || !contentType || !contentType.includes("application/json")) {
         console.log("Outlook API is initializing, waiting 2 seconds for auto-retry...");
         await new Promise((resolve) => setTimeout(resolve, 2000));
-        response = await fetch("/api/outlook/url");
+        response = await fetch(getApiUrl("/api/outlook/url"));
         contentType = response.headers.get("content-type");
       }
 
