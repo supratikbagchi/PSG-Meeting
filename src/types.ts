@@ -5,6 +5,7 @@ export interface User {
   role: "User" | "Admin";
   isApproved: boolean;
   createdAt: string;
+  department?: string;
 }
 
 export interface Room {
@@ -21,12 +22,20 @@ export interface Booking {
   date: string;
   startTime: string;
   duration: number;
-  status: "pending" | "Approved" | "Rejected";
+  status: "pending" | "Approved" | "Rejected" | "Cancelled";
   createdAt: string;
   bookerName?: string;
   bookerEmail?: string;
   attendeesCount?: number;
   reason: string;
+  meetingType?: "Internal" | "External";
+  externalName?: string;
+  externalCompany?: string;
+  externalWhomToMeet?: string;
+  itSupportRequired?: boolean;
+  fbRequired?: boolean;
+  outlookEventId?: string;
+  outlookSynced?: boolean;
 }
 
 export interface NotificationLog {

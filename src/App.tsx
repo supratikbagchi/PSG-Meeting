@@ -97,6 +97,7 @@ export default function App() {
 
   const [regName, setRegName] = useState("");
   const [regEmail, setRegEmail] = useState("");
+  const [regDepartment, setRegDepartment] = useState("");
   const [regPassword, setRegPassword] = useState("");
   const [regConfirmPassword, setRegConfirmPassword] = useState("");
   const [regError, setRegError] = useState<string | null>(null);
@@ -129,7 +130,18 @@ export default function App() {
   const [bookerName, setBookerName] = useState(() => localStorage.getItem("ps_booker_name") || "");
   const [bookerEmail, setBookerEmail] = useState(() => localStorage.getItem("ps_booker_email") || "");
   const [bookingReason, setBookingReason] = useState("");
+  const [meetingType, setMeetingType] = useState<"Internal" | "External">("Internal");
+  const [externalName, setExternalName] = useState("");
+  const [externalCompany, setExternalCompany] = useState("");
+  const [externalWhomToMeet, setExternalWhomToMeet] = useState("");
   const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
+
+  // New Checkbox, Search, and Outlook Sync States
+  const [itSupportRequired, setItSupportRequired] = useState(false);
+  const [fbRequired, setFbRequired] = useState(false);
+  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
+  const [outlookConnected, setOutlookConnected] = useState(() => !!localStorage.getItem("outlook_refresh_token"));
+  const [outlookEmail, setOutlookEmail] = useState(() => localStorage.getItem("outlook_email") || "");
 
   // Admin Manage Room Form
   const [showRoomModal, setShowRoomModal] = useState(false);
@@ -191,6 +203,24 @@ export default function App() {
       setSessionLoading(false);
     });
     return () => unsubscribe();
+  }, []);
+
+  // Listen for Outlook Authentication Success message
+  useEffect(() => {
+    const handleOutlookMessage = (e: MessageEvent) => {
+      if (e.data && e.data.type === "OUTLOOK_AUTH_SUCCESS") {
+        const { outlookEmail, accessToken, refreshToken, expiresAt } = e.data;
+        localStorage.setItem("outlook_email", outlookEmail);
+        localStorage.setItem("outlook_access_token", accessToken);
+        localStorage.setItem("outlook_refresh_token", refreshToken);
+        localStorage.setItem("outlook_expires_at", String(expiresAt));
+        setOutlookConnected(true);
+        setOutlookEmail(outlookEmail);
+        alert(`Successfully connected Outlook account: ${outlookEmail}`);
+      }
+    };
+    window.addEventListener("message", handleOutlookMessage);
+    return () => window.removeEventListener("message", handleOutlookMessage);
   }, []);
 
   // Fetch Rooms & Bookings
@@ -265,6 +295,7 @@ export default function App() {
         date: searchDate,
         attendeesCount: searchAttendees,
         duration: searchDuration,
+        features: selectedFeatures,
         clientDate,
         clientTime,
       });
@@ -354,18 +385,24 @@ export default function App() {
     setRegError(null);
     setRegSuccess(null);
 
+    if (!regDepartment.trim()) {
+      setRegError("Department field is mandatory.");
+      return;
+    }
+
     if (regPassword !== regConfirmPassword) {
-      setRegError("Passwords do not match");
+      setRegError("Passwords do not match. Please re-enter passwords.");
       return;
     }
 
     setRegLoading(true);
     try {
-      const response = await apiService.register(regEmail, regPassword, regName);
+      const response = await apiService.register(regEmail, regPassword, regName, regDepartment);
       setRegSuccess(response.message);
       // reset fields
       setRegName("");
       setRegEmail("");
+      setRegDepartment("");
       setRegPassword("");
       setRegConfirmPassword("");
     } catch (err: any) {
@@ -389,6 +426,10 @@ export default function App() {
     setBookingSuccess(null);
     setBookingError(null);
     setBookingReason("");
+    setMeetingType("Internal");
+    setExternalName("");
+    setExternalCompany("");
+    setExternalWhomToMeet("");
 
     if (currentUser) {
       setBookerName(currentUser.name || "");
@@ -407,6 +448,23 @@ export default function App() {
       setBookingError("Reason for booking is mandatory and must be filled.");
       return;
     }
+
+    if (meetingType === "External") {
+      if (!externalName.trim()) {
+        setBookingError("Visitor Name is mandatory for External meetings.");
+        return;
+      }
+      if (!externalWhomToMeet.trim()) {
+        setBookingError("Whom to Meet is mandatory for External meetings.");
+        return;
+      }
+    }
+
+    if (Number(searchDuration) > 180) {
+      setBookingError("Maximum duration for any booking is limited to 3 hours (180 minutes).");
+      return;
+    }
+
     setSubmittingBooking(true);
     setBookingError(null);
     setBookingSuccess(null);
@@ -424,10 +482,49 @@ export default function App() {
         bookerName: bookerName.trim(),
         bookerEmail: bookerEmail.trim(),
         reason: bookingReason.trim(),
+        meetingType,
+        externalName: meetingType === "External" ? externalName.trim() : undefined,
+        externalCompany: meetingType === "External" ? externalCompany.trim() : undefined,
+        externalWhomToMeet: meetingType === "External" ? externalWhomToMeet.trim() : undefined,
         attendeesCount: customAttendees,
+        itSupportRequired,
+        fbRequired,
         clientDate,
         clientTime,
       });
+
+      // Outlook sync if connected
+      if (outlookConnected) {
+        const refresh_token = localStorage.getItem("outlook_refresh_token");
+        if (refresh_token) {
+          try {
+            const syncResponse = await fetch("/api/outlook/create-event", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                refreshToken: refresh_token,
+                booking: result.booking,
+                roomName: selectedRoom.name
+              })
+            });
+            if (syncResponse.ok) {
+              const syncData = await syncResponse.json();
+              if (syncData.success && syncData.eventId) {
+                await apiService.updateBookingOutlook(result.booking.bookingId, syncData.eventId, true);
+                if (syncData.refreshToken) localStorage.setItem("outlook_refresh_token", syncData.refreshToken);
+                if (syncData.accessToken) localStorage.setItem("outlook_access_token", syncData.accessToken);
+                if (syncData.expiresAt) localStorage.setItem("outlook_expires_at", String(syncData.expiresAt));
+                console.log("Successfully synchronized booking with Outlook!");
+              }
+            } else {
+              console.warn("Outlook sync response failed", await syncResponse.text());
+            }
+          } catch (syncErr) {
+            console.warn("Error synchronizing booking with Outlook", syncErr);
+          }
+        }
+      }
+
       setBookingSuccess(result.message);
       
       // Store locally for subsequent reservations convenience
@@ -444,11 +541,87 @@ export default function App() {
       setSelectedRoom(null);
       setSelectedStartTime("");
       setBookingReason("");
+      setMeetingType("Internal");
+      setExternalName("");
+      setExternalCompany("");
+      setExternalWhomToMeet("");
+      setItSupportRequired(false);
+      setFbRequired(false);
     } catch (err: any) {
       setBookingError(formatError(err));
     } finally {
       setSubmittingBooking(false);
     }
+  };
+
+  // Organizer Actions: Cancel Reservation
+  const handleCancelBooking = async (booking: Booking) => {
+    if (!confirm("Are you sure you want to cancel this booking?")) return;
+    try {
+      await apiService.cancelBooking(booking.bookingId);
+
+      // If Outlook synchronized, attempt to delete from Outlook
+      if (booking.outlookSynced && booking.outlookEventId) {
+        const refresh_token = localStorage.getItem("outlook_refresh_token");
+        if (refresh_token) {
+          try {
+            const deleteResponse = await fetch("/api/outlook/delete-event", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                refreshToken: refresh_token,
+                eventId: booking.outlookEventId
+              })
+            });
+            if (deleteResponse.ok) {
+              const deleteData = await deleteResponse.json();
+              if (deleteData.refreshToken) localStorage.setItem("outlook_refresh_token", deleteData.refreshToken);
+              if (deleteData.accessToken) localStorage.setItem("outlook_access_token", deleteData.accessToken);
+              if (deleteData.expiresAt) localStorage.setItem("outlook_expires_at", String(deleteData.expiresAt));
+              console.log("Outlook event removed successfully!");
+            }
+          } catch (syncErr) {
+            console.warn("Could not remove Outlook event during cancellation", syncErr);
+          }
+        }
+      }
+
+      alert("Your meeting room reservation was successfully cancelled.");
+      fetchBookingsData();
+      triggerAvailabilityCheck();
+    } catch (err: any) {
+      alert("Failed to cancel booking: " + err.message);
+    }
+  };
+
+  // Outlook Calendar Handlers
+  const handleConnectOutlook = async () => {
+    try {
+      const response = await fetch("/api/outlook/url");
+      const data = await response.json();
+      if (data.url) {
+        const width = 600, height = 750;
+        const left = window.screen.width / 2 - width / 2;
+        const top = window.screen.height / 2 - height / 2;
+        window.open(
+          data.url,
+          "outlook-auth",
+          `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes`
+        );
+      }
+    } catch (err: any) {
+      alert("Failed to get Outlook login URL: " + err.message);
+    }
+  };
+
+  const handleDisconnectOutlook = () => {
+    localStorage.removeItem("outlook_email");
+    localStorage.removeItem("outlook_access_token");
+    localStorage.removeItem("outlook_refresh_token");
+    localStorage.removeItem("outlook_expires_at");
+    setOutlookConnected(false);
+    setOutlookEmail("");
+    alert("Outlook Calendar account disconnected.");
   };
 
   // Admin Actions: Approve User registration
@@ -806,7 +979,7 @@ export default function App() {
 
                 <div className="space-y-1.5">
                   <label htmlFor="reg-name" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                    Full Name
+                    Full Name <span className="text-red-500">*</span>
                   </label>
                   <input
                     id="reg-name"
@@ -820,7 +993,7 @@ export default function App() {
 
                 <div className="space-y-1.5">
                   <label htmlFor="reg-email" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                    Email Address
+                    Email Address <span className="text-red-500">*</span>
                   </label>
                   <input
                     id="reg-email"
@@ -833,10 +1006,25 @@ export default function App() {
                   <p className="text-[10px] text-slate-500 font-medium">⚠️ Any valid email address can register.</p>
                 </div>
 
+                <div className="space-y-1.5">
+                  <label htmlFor="reg-department" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    Department <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="reg-department"
+                    type="text"
+                    required
+                    placeholder="e.g. Sales, HR, Engineering"
+                    value={regDepartment}
+                    onChange={(e) => setRegDepartment(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
+                  />
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <label htmlFor="reg-pass" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                      Password
+                      Password <span className="text-red-500">*</span>
                     </label>
                     <input
                       id="reg-pass"
@@ -849,7 +1037,7 @@ export default function App() {
                   </div>
                   <div className="space-y-1.5">
                     <label htmlFor="reg-confirm-pass" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                      Confirm
+                      Re-Enter Password <span className="text-red-500">*</span>
                     </label>
                     <input
                       id="reg-confirm-pass"
@@ -1138,14 +1326,53 @@ export default function App() {
                           onChange={(e) => setSearchDuration(parseInt(e.target.value))}
                           className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all appearance-none"
                         >
+                          <option value="15">15 Minutes</option>
                           <option value="30">30 Minutes</option>
+                          <option value="45">45 Minutes</option>
                           <option value="60">1 Hour</option>
+                          <option value="75">1 Hour 15 Minutes</option>
                           <option value="90">1.5 Hours</option>
+                          <option value="105">1 Hour 45 Minutes</option>
                           <option value="120">2 Hours</option>
+                          <option value="135">2 Hours 15 Minutes</option>
+                          <option value="150">2.5 Hours</option>
+                          <option value="165">2 Hours 45 Minutes</option>
                           <option value="180">3 Hours</option>
-                          <option value="240">4 Hours</option>
                         </select>
                         <Clock className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t border-slate-100">
+                      <label className="block text-xs font-semibold text-slate-600 uppercase">
+                        Required Room Features
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {["AC", "Whiteboard", "Projector", "TV Screen"].map((feature) => {
+                          const isSelected = selectedFeatures.includes(feature);
+                          return (
+                            <button
+                              id={`feature-btn-${feature}`}
+                              key={feature}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  setSelectedFeatures(selectedFeatures.filter(f => f !== feature));
+                                } else {
+                                  setSelectedFeatures([...selectedFeatures, feature]);
+                                }
+                              }}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border flex items-center justify-between transition-all cursor-pointer ${
+                                isSelected
+                                  ? "bg-blue-50 border-blue-300 text-blue-700 font-bold"
+                                  : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                              }`}
+                            >
+                              <span>{feature}</span>
+                              {isSelected && <span className="text-blue-600 text-[10px]">✓</span>}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
 
@@ -1252,7 +1479,7 @@ export default function App() {
 
                           {/* Horizontal Slots scroll list */}
                           <div className="space-y-2">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Time Slots (30-min intervals):</span>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Time Slots (15-min intervals):</span>
                             {(!rec.slots || rec.slots.length === 0) && rec.availableSlots.length === 0 ? (
                               <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg border border-amber-100 font-medium">
                                 ⚠️ No slots found for this room on the chosen day.
@@ -1419,6 +1646,154 @@ export default function App() {
                             <p className="text-[10px] text-slate-500">⚠️ Entering a reservation reason is mandatory for corporate tracking.</p>
                           </div>
 
+                          {/* Meeting Type Selection */}
+                          <div className="flex flex-col space-y-1.5 mb-5">
+                            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                              Type of Meeting <span className="text-red-500">*</span>
+                            </label>
+                            <div className="grid grid-cols-2 gap-3">
+                              <button
+                                type="button"
+                                onClick={() => setMeetingType("Internal")}
+                                className={`px-4 py-2.5 rounded-lg text-sm font-semibold border transition-all cursor-pointer text-center ${
+                                  meetingType === "Internal"
+                                    ? "bg-blue-600 border-blue-500 text-white"
+                                    : "bg-slate-850 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800"
+                                }`}
+                              >
+                                Internal Meeting
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setMeetingType("External")}
+                                className={`px-4 py-2.5 rounded-lg text-sm font-semibold border transition-all cursor-pointer text-center ${
+                                  meetingType === "External"
+                                    ? "bg-blue-600 border-blue-500 text-white"
+                                    : "bg-slate-850 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800"
+                                }`}
+                              >
+                                External Meeting
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Conditional External Visitor Information Section */}
+                          {meetingType === "External" && (
+                            <motion.div
+                              initial={{ opacity: 0, y: -10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="bg-slate-850/55 border border-slate-850 rounded-xl p-4 mb-5 space-y-4"
+                            >
+                              <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-2">
+                                External Visitor Details
+                              </h4>
+                              
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="flex flex-col space-y-1.5">
+                                  <label htmlFor="external-name" className="text-[11px] font-semibold text-slate-400">
+                                    VISITOR NAME <span className="text-red-500">*</span>
+                                  </label>
+                                  <input
+                                    id="external-name"
+                                    type="text"
+                                    required
+                                    placeholder="Enter visitor's full name"
+                                    value={externalName}
+                                    onChange={(e) => setExternalName(e.target.value)}
+                                    className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 transition-all"
+                                  />
+                                </div>
+
+                                <div className="flex flex-col space-y-1.5">
+                                  <label htmlFor="external-company" className="text-[11px] font-semibold text-slate-400">
+                                    COMPANY NAME <span className="text-slate-500">(Optional)</span>
+                                  </label>
+                                  <input
+                                    id="external-company"
+                                    type="text"
+                                    placeholder="Enter company name"
+                                    value={externalCompany}
+                                    onChange={(e) => setExternalCompany(e.target.value)}
+                                    className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 transition-all"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col space-y-1.5">
+                                <label htmlFor="external-whom" className="text-[11px] font-semibold text-slate-400">
+                                  WHOM TO MEET <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                  id="external-whom"
+                                  type="text"
+                                  required
+                                  placeholder="Name of the employee being met"
+                                  value={externalWhomToMeet}
+                                  onChange={(e) => setExternalWhomToMeet(e.target.value)}
+                                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 transition-all"
+                                />
+                              </div>
+                            </motion.div>
+                          )}
+
+                          {/* Requirements & Outlook Sync Options */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-850 p-4 rounded-xl mb-5 border border-slate-800">
+                            <div className="space-y-3">
+                              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Additional Requirements</span>
+                              
+                              <label className="flex items-center space-x-3 text-sm text-slate-200 cursor-pointer select-none">
+                                <input
+                                  id="it-support-checkbox"
+                                  type="checkbox"
+                                  checked={itSupportRequired}
+                                  onChange={(e) => setItSupportRequired(e.target.checked)}
+                                  className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                />
+                                <span className="font-medium">IT Support Required</span>
+                              </label>
+
+                              <label className="flex items-center space-x-3 text-sm text-slate-200 cursor-pointer select-none">
+                                <input
+                                  id="fb-checkbox"
+                                  type="checkbox"
+                                  checked={fbRequired}
+                                  onChange={(e) => setFbRequired(e.target.checked)}
+                                  className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                />
+                                <span className="font-medium">F&B Required (Food & Beverages)</span>
+                              </label>
+                            </div>
+
+                            <div className="space-y-3 border-t md:border-t-0 md:border-l border-slate-800 pt-3 md:pt-0 md:pl-4 flex flex-col justify-between">
+                              <div>
+                                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Outlook Calendar Integration</span>
+                                {outlookConnected ? (
+                                  <div className="mt-1.5 flex items-center space-x-2 text-xs text-green-400 font-semibold">
+                                    <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
+                                    <span>Synced: {outlookEmail}</span>
+                                  </div>
+                                ) : (
+                                  <p className="text-[11px] text-slate-400 mt-1">
+                                    Connect Outlook to automatically add bookings and cancellations to your corporate calendar.
+                                  </p>
+                                )}
+                              </div>
+
+                              <button
+                                id="toggle-outlook-sync-btn"
+                                type="button"
+                                onClick={outlookConnected ? handleDisconnectOutlook : handleConnectOutlook}
+                                className={`w-full py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
+                                  outlookConnected
+                                    ? "bg-slate-800 hover:bg-slate-750 text-red-400 border border-red-500/20"
+                                    : "bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/10"
+                                }`}
+                              >
+                                {outlookConnected ? "Disconnect Outlook Sync" : "Connect Outlook Calendar"}
+                              </button>
+                            </div>
+                          </div>
+
                           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                             <div className="flex items-center space-x-2.5 w-full sm:w-auto">
                               <label htmlFor="custom-attendees" className="text-xs text-slate-300 shrink-0">ATTENDEES COUNT:</label>
@@ -1503,12 +1878,13 @@ export default function App() {
                         <tr>
                           <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Room Name</th>
                           <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Booked By</th>
-                          <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Reason</th>
+                          <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Reason &amp; Requirements</th>
                           <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Date</th>
                           <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Start Time</th>
                           <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Duration</th>
                           <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
                           <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Created At</th>
+                          <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-slate-200 text-sm">
@@ -1524,19 +1900,71 @@ export default function App() {
                                 <div className="font-medium text-slate-800">{booking.bookerName || "Guest User"}</div>
                                 <div className="text-xs text-slate-400 font-mono">{booking.bookerEmail || "guest@example.com"}</div>
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap max-w-xs truncate text-slate-700 font-medium" title={booking.reason}>
-                                {booking.reason || "Corporate Meeting"}
+                              <td className="px-6 py-4 whitespace-nowrap max-w-xs text-slate-700 font-medium">
+                                <div className="truncate font-semibold text-slate-850" title={booking.reason}>
+                                  {booking.reason || "Corporate Meeting"}
+                                </div>
+                                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                  {booking.meetingType === "External" ? (
+                                    <>
+                                      <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-amber-100 text-amber-850 uppercase tracking-wider">
+                                        External
+                                      </span>
+                                      <span className="text-[10px] text-slate-500 font-medium max-w-[180px] truncate" title={`Visitor: ${booking.externalName} (${booking.externalCompany || "N/A"}) - Meeting: ${booking.externalWhomToMeet}`}>
+                                        👤 {booking.externalName} ({booking.externalCompany || "N/A"}) to meet {booking.externalWhomToMeet}
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-blue-100 text-blue-850 uppercase tracking-wider">
+                                      Internal
+                                    </span>
+                                  )}
+                                  {booking.itSupportRequired && (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-purple-100 text-purple-850 uppercase tracking-wider">
+                                      🔌 IT Support
+                                    </span>
+                                  )}
+                                  {booking.fbRequired && (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-rose-100 text-rose-850 uppercase tracking-wider">
+                                      ☕ F&B Required
+                                    </span>
+                                  )}
+                                  {booking.outlookSynced && (
+                                    <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-emerald-100 text-emerald-850 uppercase tracking-wider">
+                                      📅 Outlook Synced
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-slate-600">{booking.date}</td>
                               <td className="px-6 py-4 whitespace-nowrap font-mono font-medium text-blue-600">{booking.startTime}</td>
                               <td className="px-6 py-4 whitespace-nowrap text-slate-600">{booking.duration} mins</td>
                               <td className="px-6 py-4 whitespace-nowrap">
-                                <span className="px-2.5 py-1 text-xs font-bold rounded-full uppercase tracking-wider bg-green-100 text-green-800">
+                                <span className={`px-2.5 py-1 text-xs font-bold rounded-full uppercase tracking-wider ${
+                                  booking.status === "Cancelled"
+                                    ? "bg-red-100 text-red-800"
+                                    : booking.status === "Approved"
+                                      ? "bg-green-100 text-green-800"
+                                      : "bg-slate-100 text-slate-800"
+                                }`}>
                                   {booking.status}
                                 </span>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-400">
                                 {new Date(booking.createdAt).toLocaleString()}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                {booking.status !== "Cancelled" && (currentUser?.role === "Admin" || currentUser?.email === booking.bookerEmail) ? (
+                                  <button
+                                    id={`cancel-btn-${booking.bookingId}`}
+                                    onClick={() => handleCancelBooking(booking)}
+                                    className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-800 border border-red-200 hover:border-red-300 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-sm"
+                                  >
+                                    Cancel
+                                  </button>
+                                ) : (
+                                  <span className="text-xs text-slate-400 font-medium">-</span>
+                                )}
                               </td>
                             </tr>
                           );

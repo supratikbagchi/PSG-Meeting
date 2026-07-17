@@ -72,7 +72,8 @@ function isOverlapping(startA: string, durationA: number, startB: string, durati
   const minStartB = timeToMinutes(startB);
   const minEndB = minStartB + durationB;
 
-  return minStartA < minEndB && minStartB < minEndA;
+  // Including a 15-minute buffer gap between all time slots
+  return minStartA < minEndB + 15 && minStartB < minEndA + 15;
 }
 
 // Helper to log administrative actions
@@ -257,10 +258,15 @@ export const apiService = {
   /**
    * Register a new corporate employee profile
    */
-  async register(email: string, password: string, name: string): Promise<{ message: string; user: User }> {
+  async register(email: string, password: string, name: string, department: string): Promise<{ message: string; user: User }> {
     await ensureDb();
 
     const formattedEmail = email.toLowerCase().trim();
+    const formattedDepartment = department.trim();
+
+    if (!formattedDepartment) {
+      throw new Error("Department field is mandatory.");
+    }
 
     // Domain validation
     if (!formattedEmail.endsWith("@psgroup.in")) {
@@ -291,7 +297,8 @@ export const apiService = {
       name,
       role: "User",
       isApproved: true,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      department: formattedDepartment
     };
 
     await runFirestore(
@@ -478,14 +485,39 @@ export const apiService = {
     bookerName: string;
     bookerEmail: string;
     reason: string;
+    meetingType?: "Internal" | "External";
+    externalName?: string;
+    externalCompany?: string;
+    externalWhomToMeet?: string;
     attendeesCount?: number;
     clientDate?: string;
     clientTime?: string;
+    itSupportRequired?: boolean;
+    fbRequired?: boolean;
+    outlookEventId?: string;
+    outlookSynced?: boolean;
   }): Promise<{ message: string; booking: Booking }> {
     await ensureDb();
 
     if (!bookingDetails.reason || !bookingDetails.reason.trim()) {
       throw new Error("Reason for booking is mandatory and must be filled.");
+    }
+
+    // Capture meeting type (mandatory)
+    const mType = bookingDetails.meetingType || "Internal";
+    if (mType === "External") {
+      if (!bookingDetails.externalName || !bookingDetails.externalName.trim()) {
+        throw new Error("External visitor's name is mandatory for External meetings.");
+      }
+      if (!bookingDetails.externalWhomToMeet || !bookingDetails.externalWhomToMeet.trim()) {
+        throw new Error("Specifying whom they are meeting is mandatory for External meetings.");
+      }
+    }
+
+    // Limit maximum duration to 3 hours (180 minutes)
+    const durationNum = Number(bookingDetails.duration);
+    if (durationNum > 180) {
+      throw new Error("Maximum duration for any booking is limited to 3 hours (180 minutes).");
     }
 
     const user = this.getCachedUser();
@@ -511,7 +543,7 @@ export const apiService = {
     );
 
     if (conflict) {
-      throw new Error(`Time collision! The requested slot conflicts with a confirmed reservation (${conflict.startTime}).`);
+      throw new Error(`Time collision! The requested slot conflicts with a confirmed reservation or buffer gap (${conflict.startTime}).`);
     }
 
     const bookingId = "book-" + Math.random().toString(36).substr(2, 9);
@@ -520,10 +552,18 @@ export const apiService = {
       roomId: bookingDetails.roomId,
       date: bookingDetails.date,
       startTime: bookingDetails.startTime,
-      duration: Number(bookingDetails.duration),
+      duration: durationNum,
       status: "Approved", // Automatically approved/confirmed instantly
       createdAt: new Date().toISOString(),
       reason: bookingDetails.reason.trim(),
+      meetingType: mType,
+      externalName: mType === "External" ? bookingDetails.externalName?.trim() : undefined,
+      externalCompany: mType === "External" ? (bookingDetails.externalCompany?.trim() || "") : undefined,
+      externalWhomToMeet: mType === "External" ? bookingDetails.externalWhomToMeet?.trim() : undefined,
+      itSupportRequired: !!bookingDetails.itSupportRequired,
+      fbRequired: !!bookingDetails.fbRequired,
+      outlookEventId: bookingDetails.outlookEventId || undefined,
+      outlookSynced: !!bookingDetails.outlookSynced,
     };
 
     if (user?.uid) {
@@ -548,6 +588,40 @@ export const apiService = {
       message: "Your instant meeting reservation is successfully booked and confirmed!",
       booking: newBooking
     };
+  },
+
+  /**
+   * Cancel a reservation
+   */
+  async cancelBooking(bookingId: string): Promise<Booking> {
+    await ensureDb();
+
+    const bookingRef = doc(db, "bookings", bookingId);
+    const bookingDoc = await runFirestore(
+      () => getDoc(bookingRef),
+      OperationType.GET,
+      `bookings/${bookingId}`
+    );
+
+    if (!bookingDoc.exists()) {
+      throw new Error("Booking record not found");
+    }
+
+    const booking = bookingDoc.data() as Booking;
+    booking.status = "Cancelled";
+
+    await runFirestore(
+      () => updateDoc(bookingRef, { status: "Cancelled" }),
+      OperationType.UPDATE,
+      "bookings"
+    );
+
+    await addAdminActivity(
+      "Cancel Reservation",
+      `Cancelled reservation #${bookingId} for Room ID ${booking.roomId} (Booker: ${booking.bookerName})`
+    );
+
+    return booking;
   },
 
   /**
@@ -587,18 +661,19 @@ export const apiService = {
   // ==================== RECOMMENDATIONS / AVAILABILITY SERVICE ====================
 
   /**
-   * Query 30-minute timeslot recommendations based on date, duration, and capacity
+   * Query 15-minute timeslot recommendations based on date, duration, and capacity
    */
   async checkAvailability(query: {
     date: string;
     attendeesCount: number;
     duration: number;
+    features?: string[];
     clientDate?: string;
     clientTime?: string;
   }): Promise<Recommendation[]> {
     await ensureDb();
 
-    const { date, attendeesCount, duration, clientDate, clientTime } = query;
+    const { date, attendeesCount, duration, features, clientDate, clientTime } = query;
 
     if (!date || !duration) {
       throw new Error("Date and meeting duration are required");
@@ -608,16 +683,25 @@ export const apiService = {
     const requestedCapacity = attendeesCount ? Number(attendeesCount) : 0;
     const reqDuration = Number(duration);
 
-    // 1. Filter rooms meeting minimum requirements
-    const suitableRooms = rooms.filter(r => r.capacity >= requestedCapacity);
+    // 1. Filter rooms meeting minimum requirements and feature requirements
+    const suitableRooms = rooms.filter(r => {
+      if (r.capacity < requestedCapacity) return false;
+      if (features && features.length > 0) {
+        const hasAll = features.every(f =>
+          r.features && r.features.some(rf => rf.toLowerCase() === f.toLowerCase())
+        );
+        if (!hasAll) return false;
+      }
+      return true;
+    });
 
     // Corporate Work Hours: 09:00 to 18:00
     const workStart = 9 * 60; // 540 minutes
     const workEnd = 18 * 60;  // 1080 minutes
 
-    // Generate intervals
+    // Generate intervals in 15-minute increments instead of 30-minute
     const intervals: number[] = [];
-    for (let m = workStart; m + reqDuration <= workEnd; m += 30) {
+    for (let m = workStart; m + reqDuration <= workEnd; m += 15) {
       intervals.push(m);
     }
 
@@ -873,5 +957,18 @@ export const apiService = {
     });
     await batch.commit();
     await addAdminActivity("Clear All Bookings", "Permanently removed all meeting room reservation records from the database");
+  },
+
+  /**
+   * Update Outlook synchronization parameters on a booking
+   */
+  async updateBookingOutlook(bookingId: string, outlookEventId: string, outlookSynced: boolean): Promise<void> {
+    await ensureDb();
+    const bookingRef = doc(db, "bookings", bookingId);
+    await runFirestore(
+      () => updateDoc(bookingRef, { outlookEventId, outlookSynced }),
+      OperationType.UPDATE,
+      "bookings"
+    );
   }
 };
