@@ -671,14 +671,23 @@ export default function App() {
   // Outlook Calendar Handlers
   const handleConnectOutlook = async () => {
     try {
-      const response = await fetch("/api/outlook/url");
+      let response = await fetch("/api/outlook/url");
+      
+      // Automatic retry once if the server is starting up or returning non-JSON
+      let contentType = response.headers.get("content-type");
+      if (!response.ok || !contentType || !contentType.includes("application/json")) {
+        console.log("Outlook API is initializing, waiting 2 seconds for auto-retry...");
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        response = await fetch("/api/outlook/url");
+        contentType = response.headers.get("content-type");
+      }
+
       if (!response.ok) {
         throw new Error(`Server offline or restarting (Status: ${response.status}). Please try again in a moment.`);
       }
       
-      const contentType = response.headers.get("content-type");
       if (!contentType || !contentType.includes("application/json")) {
-        throw new Error("The backend server is initializing. Please try again in a few seconds.");
+        throw new Error("The backend server is finishing its build. Please wait 5 seconds and click 'Connect Outlook Calendar' again.");
       }
       
       const data = await response.json();

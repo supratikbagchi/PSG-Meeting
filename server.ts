@@ -253,14 +253,15 @@ function minutesToTime(minutes: number): string {
   return `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
 }
 
-// Helper to check if two booking time slots overlap
+// Helper to check if two booking time slots overlap (including a 15-minute room service gap)
 function isOverlapping(startA: string, durationA: number, startB: string, durationB: number): boolean {
   const minStartA = timeToMinutes(startA);
   const minEndA = minStartA + durationA;
   const minStartB = timeToMinutes(startB);
   const minEndB = minStartB + durationB;
 
-  return minStartA < minEndB && minStartB < minEndA;
+  // Accommodates a 15 min gap for room service between any two bookings
+  return minStartA < minEndB + 15 && minStartB < minEndA + 15;
 }
 
 // Background checker function
