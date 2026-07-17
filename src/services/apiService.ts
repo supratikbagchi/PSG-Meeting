@@ -699,9 +699,9 @@ export const apiService = {
     const workStart = 9 * 60; // 540 minutes
     const workEnd = 18 * 60;  // 1080 minutes
 
-    // Generate intervals in 15-minute increments instead of 30-minute
+    // Generate intervals in 30-minute increments while accommodating 15-minute room service gaps via overlap validation
     const intervals: number[] = [];
-    for (let m = workStart; m + reqDuration <= workEnd; m += 15) {
+    for (let m = workStart; m + reqDuration <= workEnd; m += 30) {
       intervals.push(m);
     }
 

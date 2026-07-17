@@ -1571,7 +1571,7 @@ export default function App() {
 
                           {/* Horizontal Slots scroll list */}
                           <div className="space-y-2">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Time Slots (15-min intervals):</span>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Time Slots (30-min intervals):</span>
                             {(!rec.slots || rec.slots.length === 0) && rec.availableSlots.length === 0 ? (
                               <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg border border-amber-100 font-medium">
                                 ⚠️ No slots found for this room on the chosen day.
