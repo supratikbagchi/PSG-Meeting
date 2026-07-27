@@ -448,7 +448,7 @@ export const apiService = {
   // ==================== BOOKING PORTAL SERVICE ====================
 
   /**
-   * Fetch accessible booking logs (Admins see all, Users see their own)
+   * Fetch all booking logs (Available to anyone without user level restrictions)
    */
   async getBookings(): Promise<Booking[]> {
     await ensureDb();
@@ -465,13 +465,7 @@ export const apiService = {
     // Sort by createdAt descending
     bookings.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    const user = this.getCachedUser();
-    if (user?.role === "Admin") {
-      return bookings;
-    }
-
-    // Filter to user's bookings only
-    return bookings.filter(b => b.bookerEmail === user?.email || b.userId === user?.uid);
+    return bookings;
   },
 
   /**
