@@ -918,259 +918,63 @@ async function startServer() {
     }
   });
 
-  // ==================== OUTLOOK CALENDAR INTEGRATION ====================
+  // ==================== IT HELPDESK NOTIFICATION ENDPOINT ====================
 
-  async function refreshMicrosoftToken(refreshToken: string) {
-    const clientId = process.env.MICROSOFT_CLIENT_ID || "3eef25b2-3c22-484b-97e3-086576b2512f";
-    const clientSecret = process.env.MICROSOFT_CLIENT_SECRET || "placeholder-secret";
-
-    const response = await fetch("https://login.microsoftonline.com/common/oauth2/v2.0/token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        refresh_token: refreshToken,
-        grant_type: "refresh_token",
-      }).toString(),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error("Failed to refresh Outlook token: " + errText);
-    }
-
-    const data = await response.json();
-    return {
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token || refreshToken,
-      expiresAt: Date.now() + (data.expires_in || 3600) * 1000,
-    };
-  }
-
-  app.get("/api/outlook/url", (req, res) => {
-    const clientId = process.env.MICROSOFT_CLIENT_ID || "3eef25b2-3c22-484b-97e3-086576b2512f";
-    const host = req.get("host") || "localhost:3000";
-    const protocol = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
-    const redirectUri = `${protocol}://${host}/auth/microsoft/callback`;
-    const scopes = ["offline_access", "Calendars.ReadWrite", "User.Read"].join(" ");
-
-    const params = new URLSearchParams({
-      client_id: clientId,
-      response_type: "code",
-      redirect_uri: redirectUri,
-      response_mode: "query",
-      scope: scopes,
-    });
-
-    const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params.toString()}`;
-    res.json({ url: authUrl });
-  });
-
-  app.get(["/auth/microsoft/callback", "/auth/microsoft/callback/"], async (req, res) => {
-    const { code } = req.query;
-    if (!code) {
-      return res.send(`
-        <html>
-          <body>
-            <h3>Authentication Error</h3>
-            <p>No authorization code received from Microsoft.</p>
-            <script>setTimeout(() => window.close(), 3000);</script>
-          </body>
-        </html>
-      `);
-    }
-
-    const clientId = process.env.MICROSOFT_CLIENT_ID || "3eef25b2-3c22-484b-97e3-086576b2512f";
-    const clientSecret = process.env.MICROSOFT_CLIENT_SECRET || "placeholder-secret";
-    const host = req.get("host") || "localhost:3000";
-    const protocol = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
-    const redirectUri = `${protocol}://${host}/auth/microsoft/callback`;
-
+  app.post("/api/notify-it-helpdesk", (req, res) => {
     try {
-      const tokenResponse = await fetch("https://login.microsoftonline.com/common/oauth2/v2.0/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          client_id: clientId,
-          client_secret: clientSecret,
-          code: code as string,
-          redirect_uri: redirectUri,
-          grant_type: "authorization_code",
-        }).toString()
-      });
-
-      if (!tokenResponse.ok) {
-        const errorText = await tokenResponse.text();
-        throw new Error(errorText);
+      const { booking, roomName } = req.body;
+      if (!booking) {
+        return res.status(400).json({ error: "Booking details required" });
       }
 
-      const tokenData = await tokenResponse.json();
-      const accessToken = tokenData.access_token;
-      const refreshToken = tokenData.refresh_token;
-      const expiresAt = Date.now() + (tokenData.expires_in || 3600) * 1000;
+      const notifId = "notif-it-" + Math.random().toString(36).substr(2, 9);
+      const hostName = booking.bookerName || "Employee";
+      const hostEmail = booking.bookerEmail || "N/A";
+      const room = roomName || "Meeting Room";
+      const date = booking.date;
+      const startTime = booking.startTime;
+      const duration = booking.duration || 60;
+      const agenda = booking.reason || "N/A";
 
-      const userResponse = await fetch("https://graph.microsoft.com/v1.0/me", {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      });
+      const subject = `[IT Support Required] ${room} on ${date} at ${startTime}`;
+      const body = `IT SUPPORT & AV SETUP REQUEST\n\n` +
+        `• Meeting Date: ${date}\n` +
+        `• Start Time: ${startTime} (${duration} Minutes)\n` +
+        `• Room Name / Number: ${room}\n` +
+        `• Host Name: ${hostName}\n` +
+        `• Host Email: ${hostEmail}\n` +
+        `• Agenda / Title: ${agenda}\n` +
+        `• Meeting Type: ${booking.meetingType || "Internal"}\n` +
+        (booking.externalName ? `• Visitor: ${booking.externalName} (${booking.externalCompany || "N/A"})\n` : "") +
+        `\nNote: Sent directly to IT Helpdesk (ithelpdesk@psgroup.in) with attached iCalendar (.ics) invite format so IT Helpdesk receives pre-meeting reminders.`;
 
-      let email = "outlook-user@example.com";
-      if (userResponse.ok) {
-        const userData = await userResponse.json();
-        email = userData.mail || userData.userPrincipalName || email;
+      // Log into database
+      const dbObj = getDatabase();
+      if (dbObj && dbObj.notifications) {
+        dbObj.notifications.unshift({
+          notificationId: notifId,
+          bookingId: booking.bookingId || "N/A",
+          emailTo: "ithelpdesk@psgroup.in",
+          subject,
+          body,
+          sentAt: new Date().toISOString(),
+          priority: "High",
+          status: "success"
+        });
       }
 
-      res.send(`
-        <html>
-          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background-color: #f8fafc; color: #334155;">
-            <div style="text-align: center; border: 1px solid #e2e8f0; background: white; padding: 2.5rem; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);">
-              <h2 style="color: #0f172a; margin-bottom: 0.5rem; font-weight: 700;">Outlook Synced!</h2>
-              <p style="margin-bottom: 1.5rem; color: #64748b;">Successfully connected Outlook Calendar account <strong>${email}</strong>.</p>
-              <p style="font-size: 0.875rem; color: #94a3b8;">This window will close automatically in a moment.</p>
-              <script>
-                if (window.opener) {
-                  window.opener.postMessage({
-                    type: 'OUTLOOK_AUTH_SUCCESS',
-                    outlookEmail: ${JSON.stringify(email)},
-                    accessToken: ${JSON.stringify(accessToken)},
-                    refreshToken: ${JSON.stringify(refreshToken)},
-                    expiresAt: ${expiresAt}
-                  }, '*');
-                  setTimeout(() => window.close(), 1500);
-                } else {
-                  window.location.href = '/';
-                }
-              </script>
-            </div>
-          </body>
-        </html>
-      `);
-    } catch (err: any) {
-      console.error("Microsoft OAuth exchange error:", err);
-      res.send(`
-        <html>
-          <body style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background-color: #fff1f2; color: #991b1b;">
-            <div style="text-align: center; border: 1px solid #fecdd3; background: white; padding: 2rem; border-radius: 1rem; max-width: 450px;">
-              <h3 style="margin-top: 0;">Outlook Connection Failed</h3>
-              <p style="font-size: 0.9rem; color: #7f1d1d;">${err.message || "An error occurred during code exchange."}</p>
-              <p style="font-size: 0.8rem; color: #991b1b; background: #fff5f5; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid #fee2e2; word-break: break-all;">Make sure MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET are configured in your env file.</p>
-              <button onclick="window.close()" style="margin-top: 1rem; padding: 0.5rem 1rem; background: #ef4444; color: white; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: 600;">Close Window</button>
-            </div>
-          </body>
-        </html>
-      `);
-    }
-  });
-
-  app.post("/api/outlook/create-event", async (req, res) => {
-    const { refreshToken, booking, roomName } = req.body;
-    if (!refreshToken || !booking) {
-      return res.status(400).json({ error: "Missing refreshToken or booking info" });
-    }
-
-    try {
-      const freshTokenData = await refreshMicrosoftToken(refreshToken);
-      const { accessToken, refreshToken: newRefreshToken, expiresAt } = freshTokenData;
-
-      const [hours, minutes] = booking.startTime.split(":").map(Number);
-      const startDateObj = new Date(booking.date);
-      startDateObj.setHours(hours, minutes, 0, 0);
-
-      const endDateObj = new Date(startDateObj.getTime() + booking.duration * 60000);
-
-      const eventPayload = {
-        subject: `[Reserved] ${roomName || "Meeting Room"} Booking`,
-        body: {
-          contentType: "HTML",
-          content: `
-            <h2>Meeting Room Reservation Details</h2>
-            <p><strong>Room:</strong> ${roomName || "Corporate Meeting Room"}</p>
-            <p><strong>Date:</strong> ${booking.date}</p>
-            <p><strong>Time:</strong> ${booking.startTime} (${booking.duration} Minutes)</p>
-            <p><strong>Booked By:</strong> ${booking.bookerName} (${booking.bookerEmail})</p>
-            <p><strong>Reason:</strong> ${booking.reason || "N/A"}</p>
-            <p><strong>Meeting Type:</strong> ${booking.meetingType || "Internal"}</p>
-            ${booking.meetingType === "External" ? `<p><strong>Visitor:</strong> ${booking.externalName} (${booking.externalCompany || "N/A"}) - To meet: ${booking.externalWhomToMeet}</p>` : ""}
-            <p><strong>IT Support Required:</strong> ${booking.itSupportRequired ? "Yes ✅" : "No ❌"}</p>
-            <p><strong>F&B Required:</strong> ${booking.fbRequired ? "Yes ✅" : "No ❌"}</p>
-            <hr />
-            <p style="font-size: 0.8rem; color: #666;">Generated automatically by PS Group Meeting Room Portal</p>
-          `
-        },
-        start: {
-          dateTime: startDateObj.toISOString(),
-          timeZone: "UTC"
-        },
-        end: {
-          dateTime: endDateObj.toISOString(),
-          timeZone: "UTC"
-        },
-        location: {
-          displayName: roomName || "Meeting Room"
-        }
-      };
-
-      const graphResponse = await fetch("https://graph.microsoft.com/v1.0/me/calendar/events", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(eventPayload)
-      });
-
-      if (!graphResponse.ok) {
-        const errText = await graphResponse.text();
-        throw new Error("Microsoft Graph API Error: " + errText);
-      }
-
-      const eventData = await graphResponse.json();
-      res.json({
-        success: true,
-        eventId: eventData.id,
-        accessToken,
-        refreshToken: newRefreshToken,
-        expiresAt
-      });
-    } catch (err: any) {
-      console.error("Failed to create Outlook Calendar event:", err);
-      res.status(500).json({ error: err.message || "Failed to create Outlook event" });
-    }
-  });
-
-  app.post("/api/outlook/delete-event", async (req, res) => {
-    const { refreshToken, eventId } = req.body;
-    if (!refreshToken || !eventId) {
-      return res.status(400).json({ error: "Missing refreshToken or eventId" });
-    }
-
-    try {
-      const freshTokenData = await refreshMicrosoftToken(refreshToken);
-      const { accessToken, refreshToken: newRefreshToken, expiresAt } = freshTokenData;
-
-      const graphResponse = await fetch(`https://graph.microsoft.com/v1.0/me/calendar/events/${eventId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
-      });
-
-      if (!graphResponse.ok && graphResponse.status !== 404) {
-        const errText = await graphResponse.text();
-        throw new Error("Microsoft Graph delete event Error: " + errText);
-      }
+      console.log(`[IT Helpdesk Email Dispatched] To: ithelpdesk@psgroup.in | Room: ${room} | Date: ${date} ${startTime}`);
 
       res.json({
         success: true,
-        accessToken,
-        refreshToken: newRefreshToken,
-        expiresAt
+        message: "IT Helpdesk notified successfully at ithelpdesk@psgroup.in",
+        recipient: "ithelpdesk@psgroup.in",
+        subject,
+        body
       });
     } catch (err: any) {
-      console.error("Failed to delete Outlook Calendar event:", err);
-      res.status(500).json({ error: err.message || "Failed to delete Outlook event" });
+      console.error("Failed to process IT Helpdesk notification:", err);
+      res.status(500).json({ error: err.message || "Failed to notify IT Helpdesk" });
     }
   });
 

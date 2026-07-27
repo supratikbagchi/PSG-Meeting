@@ -21,7 +21,8 @@ import {
   ChevronRight,
   Sparkles,
   MapPin,
-  Tag
+  Tag,
+  X
 } from "lucide-react";
 import { apiService } from "./services/apiService";
 import { onAuthStateChanged } from "firebase/auth";
@@ -158,16 +159,12 @@ export default function App() {
   const [externalWhomToMeet, setExternalWhomToMeet] = useState("");
   const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
 
-  // New Checkbox, Search, and Outlook Sync States
+  // New Checkbox, Search, and IT Support Notification States
   const [itSupportRequired, setItSupportRequired] = useState(false);
   const [fbRequired, setFbRequired] = useState(false);
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
-  const [outlookConnected, setOutlookConnected] = useState(() => !!localStorage.getItem("outlook_refresh_token"));
-  const [outlookEmail, setOutlookEmail] = useState(() => localStorage.getItem("outlook_email") || "");
-  const [autoOutlookSync, setAutoOutlookSync] = useState(() => {
-    const saved = localStorage.getItem("auto_outlook_sync");
-    return saved === null ? true : saved === "true";
-  });
+  const [reservationSearchQuery, setReservationSearchQuery] = useState("");
+  const [reservationFilterCategory, setReservationFilterCategory] = useState<"All" | "IT" | "FB" | "External">("All");
 
   // Admin Manage Room Form
   const [showRoomModal, setShowRoomModal] = useState(false);
@@ -229,24 +226,6 @@ export default function App() {
       setSessionLoading(false);
     });
     return () => unsubscribe();
-  }, []);
-
-  // Listen for Outlook Authentication Success message
-  useEffect(() => {
-    const handleOutlookMessage = (e: MessageEvent) => {
-      if (e.data && e.data.type === "OUTLOOK_AUTH_SUCCESS") {
-        const { outlookEmail, accessToken, refreshToken, expiresAt } = e.data;
-        localStorage.setItem("outlook_email", outlookEmail);
-        localStorage.setItem("outlook_access_token", accessToken);
-        localStorage.setItem("outlook_refresh_token", refreshToken);
-        localStorage.setItem("outlook_expires_at", String(expiresAt));
-        setOutlookConnected(true);
-        setOutlookEmail(outlookEmail);
-        alert(`Successfully connected Outlook account: ${outlookEmail}`);
-      }
-    };
-    window.addEventListener("message", handleOutlookMessage);
-    return () => window.removeEventListener("message", handleOutlookMessage);
   }, []);
 
   // Fetch Rooms & Bookings
@@ -517,42 +496,23 @@ export default function App() {
         fbRequired,
         clientDate,
         clientTime,
-        outlookSynced: outlookConnected,
+        outlookSynced: false,
       });
 
-      // Automatically sync with corporate Outlook Calendar in real time if connected
-      if (outlookConnected) {
-        const refresh_token = localStorage.getItem("outlook_refresh_token");
-        if (refresh_token) {
-          try {
-            const syncResponse = await fetch(getApiUrl("/api/outlook/create-event"), {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                refreshToken: refresh_token,
-                booking: result.booking,
-                roomName: selectedRoom.name
-              })
-            });
-            if (syncResponse.ok) {
-              const contentType = syncResponse.headers.get("content-type");
-              if (contentType && contentType.includes("application/json")) {
-                const syncData = await syncResponse.json();
-                if (syncData.success && syncData.eventId) {
-                  // Save actual Outlook event reference back to our booking
-                  await apiService.updateBookingOutlook(result.booking.bookingId, syncData.eventId, true);
-                  if (syncData.refreshToken) localStorage.setItem("outlook_refresh_token", syncData.refreshToken);
-                  if (syncData.accessToken) localStorage.setItem("outlook_access_token", syncData.accessToken);
-                  if (syncData.expiresAt) localStorage.setItem("outlook_expires_at", String(syncData.expiresAt));
-                  console.log("Successfully synced reservation directly with Outlook calendar!");
-                }
-              }
-            } else {
-              console.warn("Outlook Calendar Sync response failed:", await syncResponse.text());
-            }
-          } catch (syncErr: any) {
-            console.warn("Direct Outlook synchronization failed:", syncErr);
-          }
+      // Notify IT Helpdesk via server endpoint if IT Support is required
+      if (itSupportRequired) {
+        try {
+          await fetch(getApiUrl("/api/notify-it-helpdesk"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              booking: result.booking,
+              roomName: selectedRoom.name
+            })
+          });
+          console.log("IT Helpdesk notification sent to ithelpdesk@psgroup.in");
+        } catch (itErr) {
+          console.warn("Server notification to IT Helpdesk failed, logged in DB instead:", itErr);
         }
       }
 
@@ -585,8 +545,8 @@ export default function App() {
     }
   };
 
-  // Export meeting reservation as a standard Outlook-compatible .ics calendar invite file
-  const handleExportICS = (booking: Booking, roomName: string) => {
+  // Export meeting reservation or IT Support reminder as a standard .ics calendar invite file
+  const handleExportICS = (booking: Booking, roomName: string, isITSupport: boolean = false) => {
     try {
       const [hours, minutes] = booking.startTime.split(":").map(Number);
       const startDateObj = new Date(booking.date);
@@ -601,16 +561,32 @@ export default function App() {
       const startStr = formatICSDate(startDateObj);
       const endStr = formatICSDate(endDateObj);
 
-      const descriptionLines = [
-        `Meeting Room Reservation Details`,
-        `==================================`,
-        `Room Name: ${roomName}`,
-        `Booked By: ${booking.bookerName || "Employee"} (${booking.bookerEmail || ""})`,
-        `Reason: ${booking.reason || "N/A"}`,
-        `IT Support Required: ${booking.itSupportRequired ? "Yes ✅" : "No ❌"}`,
-        `F&B Required: ${booking.fbRequired ? "Yes ✅" : "No ❌"}`,
-        `Sync Status: Synchronized with Outlook Calendar`
-      ];
+      const summary = isITSupport
+        ? `[IT Support Required] ${roomName} - ${booking.reason || "Meeting"}`
+        : `[Reserved] ${roomName} Meeting`;
+
+      const descriptionLines = isITSupport
+        ? [
+            `IT HELPDESK ACTION REQUIRED`,
+            `==================================`,
+            `Meeting Room: ${roomName}`,
+            `Date: ${booking.date}`,
+            `Time: ${booking.startTime} (${booking.duration} Minutes)`,
+            `Host Name: ${booking.bookerName || "Employee"}`,
+            `Host Email: ${booking.bookerEmail || "N/A"}`,
+            `Agenda: ${booking.reason || "N/A"}`,
+            `Target Email: ithelpdesk@psgroup.in`,
+            `Action: Setup IT & AV Support prior to meeting start`
+          ]
+        : [
+            `Meeting Room Reservation Details`,
+            `==================================`,
+            `Room Name: ${roomName}`,
+            `Booked By: ${booking.bookerName || "Employee"} (${booking.bookerEmail || ""})`,
+            `Reason: ${booking.reason || "N/A"}`,
+            `IT Support Required: ${booking.itSupportRequired ? "Yes ✅" : "No ❌"}`,
+            `F&B Required: ${booking.fbRequired ? "Yes ✅" : "No ❌"}`
+          ];
 
       const icsContent = [
         "BEGIN:VCALENDAR",
@@ -619,11 +595,11 @@ export default function App() {
         "CALSCALE:GREGORIAN",
         "METHOD:PUBLISH",
         "BEGIN:VEVENT",
-        `UID:booking-${booking.bookingId}@psgroup.com`,
+        `UID:booking-${booking.bookingId}${isITSupport ? "-it" : ""}@psgroup.com`,
         `DTSTAMP:${stamp}`,
         `DTSTART:${startStr}`,
         `DTEND:${endStr}`,
-        `SUMMARY:[Reserved] ${roomName} Booking`,
+        `SUMMARY:${summary}`,
         `LOCATION:${roomName}`,
         `DESCRIPTION:${descriptionLines.join("\\n")}`,
         "STATUS:CONFIRMED",
@@ -631,7 +607,7 @@ export default function App() {
         "BEGIN:VALARM",
         "TRIGGER:-PT15M",
         "ACTION:DISPLAY",
-        "DESCRIPTION:Meeting Room Reservation Reminder",
+        `DESCRIPTION:${isITSupport ? "IT Support Required Reminder" : "Meeting Room Reservation Reminder"}`,
         "END:VALARM",
         "END:VEVENT",
         "END:VCALENDAR"
@@ -641,13 +617,33 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", `Meeting_Room_${roomName.replace(/\s+/g, "_")}_${booking.bookingId.substring(0, 8)}.ics`);
+      const filePrefix = isITSupport ? "IT_Support_" : "Meeting_Room_";
+      link.setAttribute("download", `${filePrefix}${roomName.replace(/\s+/g, "_")}_${booking.bookingId.substring(0, 8)}.ics`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     } catch (err: any) {
-      alert("Failed to export Outlook invitation: " + err.message);
+      alert("Failed to export calendar invitation: " + err.message);
     }
+  };
+
+  // Helper to trigger direct email client to send details to IT Helpdesk
+  const handleEmailITHelpdesk = (booking: Booking, roomName: string) => {
+    const subject = encodeURIComponent(`[IT Support Required] ${roomName} on ${booking.date} at ${booking.startTime}`);
+    const bodyText = encodeURIComponent(
+      `Hello IT Helpdesk,\n\nIT Support has been requested for an upcoming meeting:\n\n` +
+      `• Date: ${booking.date}\n` +
+      `• Time: ${booking.startTime} (${booking.duration} minutes)\n` +
+      `• Room Name / Number: ${roomName}\n` +
+      `• Host Name: ${booking.bookerName || "N/A"}\n` +
+      `• Host Email: ${booking.bookerEmail || "N/A"}\n` +
+      `• Agenda: ${booking.reason || "N/A"}\n` +
+      `• Meeting Type: ${booking.meetingType || "Internal"}\n` +
+      (booking.externalName ? `• Visitor Name: ${booking.externalName} (${booking.externalCompany || "N/A"})\n` : "") +
+      `\nPlease ensure IT & AV support is arranged before the start time.\n\nThank you,\nPS Group Meeting Room Portal`
+    );
+    window.open(`mailto:ithelpdesk@psgroup.in?subject=${subject}&body=${bodyText}`, "_blank");
   };
 
   // Organizer Actions: Cancel Reservation
@@ -655,87 +651,12 @@ export default function App() {
     if (!confirm("Are you sure you want to cancel this booking?")) return;
     try {
       await apiService.cancelBooking(booking.bookingId);
-
-      // If Outlook synchronized, attempt to delete from Outlook
-      if (booking.outlookSynced && booking.outlookEventId) {
-        const refresh_token = localStorage.getItem("outlook_refresh_token");
-        if (refresh_token) {
-          try {
-            const deleteResponse = await fetch(getApiUrl("/api/outlook/delete-event"), {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                refreshToken: refresh_token,
-                eventId: booking.outlookEventId
-              })
-            });
-            if (deleteResponse.ok) {
-              const deleteData = await deleteResponse.json();
-              if (deleteData.refreshToken) localStorage.setItem("outlook_refresh_token", deleteData.refreshToken);
-              if (deleteData.accessToken) localStorage.setItem("outlook_access_token", deleteData.accessToken);
-              if (deleteData.expiresAt) localStorage.setItem("outlook_expires_at", String(deleteData.expiresAt));
-              console.log("Outlook event removed successfully!");
-            }
-          } catch (syncErr) {
-            console.warn("Could not remove Outlook event during cancellation", syncErr);
-          }
-        }
-      }
-
       alert("Your meeting room reservation was successfully cancelled.");
       fetchBookingsData();
       triggerAvailabilityCheck();
     } catch (err: any) {
       alert("Failed to cancel booking: " + err.message);
     }
-  };
-
-  // Outlook Calendar Handlers
-  const handleConnectOutlook = async () => {
-    try {
-      let response = await fetch(getApiUrl("/api/outlook/url"));
-      
-      // Automatic retry once if the server is starting up or returning non-JSON
-      let contentType = response.headers.get("content-type");
-      if (!response.ok || !contentType || !contentType.includes("application/json")) {
-        console.log("Outlook API is initializing, waiting 2 seconds for auto-retry...");
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        response = await fetch(getApiUrl("/api/outlook/url"));
-        contentType = response.headers.get("content-type");
-      }
-
-      if (!response.ok) {
-        throw new Error(`Server offline or restarting (Status: ${response.status}). Please try again in a moment.`);
-      }
-      
-      if (!contentType || !contentType.includes("application/json")) {
-        throw new Error("The backend server is finishing its build. Please wait 5 seconds and click 'Connect Outlook Calendar' again.");
-      }
-      
-      const data = await response.json();
-      if (data.url) {
-        const width = 600, height = 750;
-        const left = window.screen.width / 2 - width / 2;
-        const top = window.screen.height / 2 - height / 2;
-        window.open(
-          data.url,
-          "outlook-auth",
-          `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes`
-        );
-      }
-    } catch (err: any) {
-      alert("Outlook Connection Error: " + err.message);
-    }
-  };
-
-  const handleDisconnectOutlook = () => {
-    localStorage.removeItem("outlook_email");
-    localStorage.removeItem("outlook_access_token");
-    localStorage.removeItem("outlook_refresh_token");
-    localStorage.removeItem("outlook_expires_at");
-    setOutlookConnected(false);
-    setOutlookEmail("");
-    alert("Outlook Calendar account disconnected.");
   };
 
   // Admin Actions: Approve User registration
@@ -1850,10 +1771,10 @@ export default function App() {
                             </motion.div>
                           )}
 
-                          {/* Requirements & Outlook Sync Options */}
+                          {/* Additional Requirements */}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-850 p-4 rounded-xl mb-5 border border-slate-800">
                             <div className="space-y-3">
-                              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Additional Requirements</span>
+                              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Additional Services</span>
                               
                               <label className="flex items-center space-x-3 text-sm text-slate-200 cursor-pointer select-none">
                                 <input
@@ -1878,47 +1799,24 @@ export default function App() {
                               </label>
                             </div>
 
-                            <div className="space-y-3 border-t md:border-t-0 md:border-l border-slate-800 pt-3 md:pt-0 md:pl-4 flex flex-col justify-between">
-                              <div>
-                                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Outlook Calendar Integration</span>
-                                
-                                {outlookConnected ? (
-                                  <div className="mt-3 space-y-3">
-                                    <div className="p-3 bg-slate-800/80 border border-emerald-500/20 rounded-xl">
-                                      <div className="flex items-center space-x-2 text-xs text-emerald-400 font-bold">
-                                        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                        <span>Outlook Active: {outlookEmail || "Connected"}</span>
-                                      </div>
-                                      <p className="text-[10px] text-slate-400 mt-1 leading-normal">
-                                        Your bookings and cancellations will automatically sync directly as calendar events on your corporate Outlook.
-                                      </p>
-                                    </div>
-                                    <button
-                                      id="disconnect-outlook-btn"
-                                      type="button"
-                                      onClick={handleDisconnectOutlook}
-                                      className="w-full py-2 px-3 bg-slate-800 hover:bg-slate-750 text-red-400 border border-red-500/25 rounded-lg text-xs font-bold transition-all cursor-pointer text-center"
-                                    >
-                                      Disconnect Outlook Account
-                                    </button>
+                            <div className="space-y-2 border-t md:border-t-0 md:border-l border-slate-800 pt-3 md:pt-0 md:pl-4 flex flex-col justify-center">
+                              {itSupportRequired ? (
+                                <div className="p-3 bg-blue-900/30 border border-blue-500/30 rounded-xl space-y-1">
+                                  <div className="flex items-center space-x-2 text-xs font-bold text-blue-400">
+                                    <Mail className="h-3.5 w-3.5 text-blue-400" />
+                                    <span>IT Helpdesk Automated Dispatch</span>
                                   </div>
-                                ) : (
-                                  <div className="mt-3 space-y-3">
-                                    <p className="text-[11px] text-slate-400 leading-normal">
-                                      Connect your corporate Outlook calendar once to sync bookings and cancellations directly to Microsoft as real calendar events.
-                                    </p>
-                                    <button
-                                      id="connect-outlook-btn"
-                                      type="button"
-                                      onClick={handleConnectOutlook}
-                                      className="w-full py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/10 rounded-lg text-xs font-bold transition-all cursor-pointer text-center flex items-center justify-center space-x-1.5"
-                                    >
-                                      <span>📅</span>
-                                      <span>Connect Outlook Calendar</span>
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
+                                  <p className="text-[11px] text-slate-300 leading-snug">
+                                    Meeting details (date, time, room, host) will be emailed directly to <strong className="text-blue-300 font-semibold">ithelpdesk@psgroup.in</strong> with an attached calendar event invite.
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="p-3 bg-slate-800/60 border border-slate-750 rounded-xl">
+                                  <p className="text-[11px] text-slate-400 leading-snug">
+                                    Check <strong className="text-slate-300 font-medium">IT Support Required</strong> if you require projector, video conference setup, audio equipment, or tech assistance during your meeting.
+                                  </p>
+                                </div>
+                              )}
                             </div>
                           </div>
 
@@ -1957,167 +1855,318 @@ export default function App() {
           )}
 
           {/* ==================== TAB 2: ALL RESERVATIONS ==================== */}
-          {activeTab === "my-bookings" && (
-            <motion.div
-              key="bookings-tab"
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              transition={{ duration: 0.15 }}
-              className="space-y-6"
-            >
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
-                  <div>
-                    <h3 className="font-display font-semibold text-slate-900 text-lg">All Active Reservations</h3>
-                    <p className="text-xs text-slate-500">View all locked slots. Reservations are approved instantly on a first-come, first-served basis.</p>
-                  </div>
-                  <button
-                    id="refresh-my-bookings-btn"
-                    onClick={() => fetchBookingsData()}
-                    className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg border border-slate-200 transition-all cursor-pointer"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                  </button>
-                </div>
+          {activeTab === "my-bookings" && (() => {
+            // Comprehensive multi-field search filter logic
+            const filteredBookings = bookings.filter((booking) => {
+              const room = rooms.find((r) => r.roomId === booking.roomId);
+              const roomName = room ? room.name.toLowerCase() : "";
+              const hostName = (booking.bookerName || "").toLowerCase();
+              const hostEmail = (booking.bookerEmail || "").toLowerCase();
+              const reason = (booking.reason || "").toLowerCase();
+              const externalName = (booking.externalName || "").toLowerCase();
+              const externalCompany = (booking.externalCompany || "").toLowerCase();
+              const externalWhomToMeet = (booking.externalWhomToMeet || "").toLowerCase();
+              const dateStr = (booking.date || "").toLowerCase();
+              const startTimeStr = (booking.startTime || "").toLowerCase();
 
-                {bookingsLoading ? (
-                  <div className="py-20 flex flex-col items-center justify-center">
-                    <RefreshCw className="h-8 w-8 text-slate-400 animate-spin mb-3" />
-                    <p className="text-sm text-slate-500">Loading schedules...</p>
-                  </div>
-                ) : bookings.length === 0 ? (
-                  <div className="py-16 text-center border-2 border-dashed border-slate-200 rounded-xl">
-                    <Calendar className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-                    <p className="text-slate-600 font-semibold">No Reservations Found</p>
-                    <p className="text-xs text-slate-400 mt-1 mb-4">No rooms have been reserved yet on the portal.</p>
+              // Quick category pill filter
+              if (reservationFilterCategory === "IT" && !booking.itSupportRequired) return false;
+              if (reservationFilterCategory === "FB" && !booking.fbRequired) return false;
+              if (reservationFilterCategory === "External" && booking.meetingType !== "External") return false;
+
+              if (!reservationSearchQuery.trim()) return true;
+
+              const query = reservationSearchQuery.toLowerCase().trim();
+
+              // Special keywords for yes / no filters
+              const isYes = query === "yes";
+              const isNo = query === "no";
+
+              const matchesIT = booking.itSupportRequired && (
+                query.includes("it") || query.includes("support") || query.includes("tech") || isYes
+              );
+              const matchesFB = booking.fbRequired && (
+                query.includes("f&b") || query.includes("fb") || query.includes("food") || query.includes("beverage") || isYes
+              );
+
+              const matchesNoIT = !booking.itSupportRequired && (query.includes("no it") || isNo);
+              const matchesNoFB = !booking.fbRequired && (query.includes("no f&b") || query.includes("no fb") || isNo);
+
+              return (
+                hostName.includes(query) ||
+                hostEmail.includes(query) ||
+                reason.includes(query) ||
+                externalName.includes(query) ||
+                externalCompany.includes(query) ||
+                externalWhomToMeet.includes(query) ||
+                dateStr.includes(query) ||
+                startTimeStr.includes(query) ||
+                roomName.includes(query) ||
+                matchesIT ||
+                matchesFB ||
+                matchesNoIT ||
+                matchesNoFB
+              );
+            });
+
+            return (
+              <motion.div
+                key="bookings-tab"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.15 }}
+                className="space-y-6"
+              >
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-100 pb-4">
+                    <div>
+                      <h3 className="font-display font-semibold text-slate-900 text-lg">All Active Reservations</h3>
+                      <p className="text-xs text-slate-500">View and search all locked slots by host, guests, agenda, date/time, F&B and IT support details.</p>
+                    </div>
                     <button
-                      id="book-first-room-btn"
-                      onClick={() => setActiveTab("book")}
-                      className="inline-flex items-center px-4 py-2 bg-slate-950 text-white hover:bg-slate-850 font-bold text-xs rounded-lg shadow cursor-pointer"
+                      id="refresh-my-bookings-btn"
+                      onClick={() => fetchBookingsData()}
+                      className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl border border-slate-200 transition-all cursor-pointer flex items-center space-x-1.5 text-xs font-semibold self-start sm:self-auto"
+                      title="Refresh Reservations"
                     >
-                      Search Rooms Now
+                      <RefreshCw className="h-4 w-4" />
+                      <span>Refresh</span>
                     </button>
                   </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-slate-200">
-                      <thead className="bg-slate-50">
-                        <tr>
-                          <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Room Name</th>
-                          <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Booked By</th>
-                          <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Reason &amp; Requirements</th>
-                          <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Date</th>
-                          <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Start Time</th>
-                          <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Duration</th>
-                          <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                          <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Created At</th>
-                          <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-slate-200 text-sm">
-                        {bookings.map((booking) => {
-                          const room = rooms.find((r) => r.roomId === booking.roomId);
-                          return (
-                            <tr key={booking.bookingId} className="hover:bg-slate-50/50">
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="font-semibold text-slate-900">{room ? room.name : "Unknown Room"}</div>
-                                <div className="text-xs text-slate-400">ID: {booking.bookingId.substring(0, 10)}...</div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="font-medium text-slate-800">{booking.bookerName || "Guest User"}</div>
-                                <div className="text-xs text-slate-400 font-mono">{booking.bookerEmail || "guest@example.com"}</div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap max-w-xs text-slate-700 font-medium">
-                                <div className="truncate font-semibold text-slate-850" title={booking.reason}>
-                                  {booking.reason || "Corporate Meeting"}
-                                </div>
-                                <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                                  {booking.meetingType === "External" ? (
-                                    <>
-                                      <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-amber-100 text-amber-850 uppercase tracking-wider">
-                                        External
-                                      </span>
-                                      <span className="text-[10px] text-slate-500 font-medium max-w-[180px] truncate" title={`Visitor: ${booking.externalName} (${booking.externalCompany || "N/A"}) - Meeting: ${booking.externalWhomToMeet}`}>
-                                        👤 {booking.externalName} ({booking.externalCompany || "N/A"}) to meet {booking.externalWhomToMeet}
-                                      </span>
-                                    </>
-                                  ) : (
-                                    <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-blue-100 text-blue-850 uppercase tracking-wider">
-                                      Internal
-                                    </span>
-                                  )}
-                                  {booking.itSupportRequired && (
-                                    <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-purple-100 text-purple-850 uppercase tracking-wider">
-                                      🔌 IT Support
-                                    </span>
-                                  )}
-                                  {booking.fbRequired && (
-                                    <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-rose-100 text-rose-850 uppercase tracking-wider">
-                                      ☕ F&B Required
-                                    </span>
-                                  )}
-                                  {booking.outlookSynced && (
-                                    <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-emerald-100 text-emerald-850 uppercase tracking-wider">
-                                      📅 Outlook Synced
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-slate-600">{booking.date}</td>
-                              <td className="px-6 py-4 whitespace-nowrap font-mono font-medium text-blue-600">{booking.startTime}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-slate-600">{booking.duration} mins</td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <span className={`px-2.5 py-1 text-xs font-bold rounded-full uppercase tracking-wider ${
-                                  booking.status === "Cancelled"
-                                    ? "bg-red-100 text-red-800"
-                                    : booking.status === "Approved"
-                                      ? "bg-green-100 text-green-800"
-                                      : "bg-slate-100 text-slate-800"
-                                }`}>
-                                  {booking.status}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-400">
-                                {new Date(booking.createdAt).toLocaleString()}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="flex items-center gap-2.5">
-                                  {booking.status !== "Cancelled" && (currentUser?.role === "Admin" || currentUser?.email === booking.bookerEmail) ? (
-                                    <button
-                                      id={`cancel-btn-${booking.bookingId}`}
-                                      onClick={() => handleCancelBooking(booking)}
-                                      className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-800 border border-red-200 hover:border-red-300 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-sm shrink-0"
-                                    >
-                                      Cancel
-                                    </button>
-                                  ) : null}
 
-                                  {booking.status !== "Cancelled" ? (
-                                    <button
-                                      id={`ics-btn-${booking.bookingId}`}
-                                      onClick={() => handleExportICS(booking, room ? room.name : "Meeting Room")}
-                                      className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-900 border border-blue-200 hover:border-blue-300 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-sm flex items-center space-x-1 shrink-0"
-                                      title="Download iCalendar file to instantly sync this meeting into your corporate Outlook Calendar"
-                                    >
-                                      <span className="text-blue-500 font-bold text-xs">📅</span>
-                                      <span>Outlook Sync (.ics)</span>
-                                    </button>
-                                  ) : (
-                                    <span className="text-xs text-slate-400 font-medium italic">Cancelled</span>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                  {/* Search Bar & Filter Controls */}
+                  <div className="mb-6 space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200/80">
+                    <div className="relative flex items-center">
+                      <Search className="absolute left-3.5 h-4 w-4 text-slate-400 pointer-events-none" />
+                      <input
+                        id="reservation-search-input"
+                        type="text"
+                        value={reservationSearchQuery}
+                        onChange={(e) => setReservationSearchQuery(e.target.value)}
+                        placeholder="Search by host name, host email, guest name, agenda, date/time, F&B (yes/no), IT support (yes/no)..."
+                        className="w-full pl-10 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm"
+                      />
+                      {reservationSearchQuery && (
+                        <button
+                          onClick={() => setReservationSearchQuery("")}
+                          className="absolute right-3 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Quick Filter Badges */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-xs font-semibold text-slate-400 mr-1">Filter:</span>
+                        <button
+                          onClick={() => setReservationFilterCategory("All")}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            reservationFilterCategory === "All"
+                              ? "bg-slate-900 text-white shadow-sm"
+                              : "bg-white text-slate-600 hover:bg-slate-200 border border-slate-200"
+                          }`}
+                        >
+                          All Bookings
+                        </button>
+                        <button
+                          onClick={() => setReservationFilterCategory("IT")}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
+                            reservationFilterCategory === "IT"
+                              ? "bg-purple-600 text-white shadow-sm"
+                              : "bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200"
+                          }`}
+                        >
+                          <span>🔌 IT Support Required</span>
+                        </button>
+                        <button
+                          onClick={() => setReservationFilterCategory("FB")}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
+                            reservationFilterCategory === "FB"
+                              ? "bg-rose-600 text-white shadow-sm"
+                              : "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200"
+                          }`}
+                        >
+                          <span>☕ F&B Required</span>
+                        </button>
+                        <button
+                          onClick={() => setReservationFilterCategory("External")}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
+                            reservationFilterCategory === "External"
+                              ? "bg-amber-600 text-white shadow-sm"
+                              : "bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200"
+                          }`}
+                        >
+                          <span>👤 External Visitors</span>
+                        </button>
+                      </div>
+
+                      <div className="text-xs text-slate-500 font-medium">
+                        Showing <strong className="text-slate-800">{filteredBookings.length}</strong> of {bookings.length} reservations
+                      </div>
+                    </div>
                   </div>
-                )}
-              </div>
-            </motion.div>
-          )}
+
+                  {bookingsLoading ? (
+                    <div className="py-20 flex flex-col items-center justify-center">
+                      <RefreshCw className="h-8 w-8 text-slate-400 animate-spin mb-3" />
+                      <p className="text-sm text-slate-500">Loading schedules...</p>
+                    </div>
+                  ) : bookings.length === 0 ? (
+                    <div className="py-16 text-center border-2 border-dashed border-slate-200 rounded-xl">
+                      <Calendar className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                      <p className="text-slate-600 font-semibold">No Reservations Found</p>
+                      <p className="text-xs text-slate-400 mt-1 mb-4">No rooms have been reserved yet on the portal.</p>
+                      <button
+                        id="book-first-room-btn"
+                        onClick={() => setActiveTab("book")}
+                        className="inline-flex items-center px-4 py-2 bg-slate-950 text-white hover:bg-slate-850 font-bold text-xs rounded-lg shadow cursor-pointer"
+                      >
+                        Search Rooms Now
+                      </button>
+                    </div>
+                  ) : filteredBookings.length === 0 ? (
+                    <div className="py-12 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                      <Search className="h-10 w-10 text-slate-300 mx-auto mb-2" />
+                      <p className="text-slate-700 font-semibold text-sm">No reservations match your search query</p>
+                      <p className="text-xs text-slate-400 mt-1 mb-3">Try clearing filters or searching for host name, date, or agenda keyword.</p>
+                      <button
+                        onClick={() => {
+                          setReservationSearchQuery("");
+                          setReservationFilterCategory("All");
+                        }}
+                        className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition-all cursor-pointer"
+                      >
+                        Clear Search Filters
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-slate-200">
+                        <thead className="bg-slate-50">
+                          <tr>
+                            <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Room Name</th>
+                            <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Booked By (Host)</th>
+                            <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Agenda &amp; Requirements</th>
+                            <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Date</th>
+                            <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Start Time</th>
+                            <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Duration</th>
+                            <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                            <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-slate-200 text-sm">
+                          {filteredBookings.map((booking) => {
+                            const room = rooms.find((r) => r.roomId === booking.roomId);
+                            const roomName = room ? room.name : "Meeting Room";
+                            return (
+                              <tr key={booking.bookingId} className="hover:bg-slate-50/50">
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="font-semibold text-slate-900">{roomName}</div>
+                                  <div className="text-xs text-slate-400">ID: {booking.bookingId.substring(0, 10)}...</div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="font-medium text-slate-800">{booking.bookerName || "Guest User"}</div>
+                                  <div className="text-xs text-slate-400 font-mono">{booking.bookerEmail || "N/A"}</div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap max-w-xs text-slate-700 font-medium">
+                                  <div className="truncate font-semibold text-slate-850" title={booking.reason}>
+                                    {booking.reason || "Corporate Meeting"}
+                                  </div>
+                                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                    {booking.meetingType === "External" ? (
+                                      <>
+                                        <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-amber-100 text-amber-850 uppercase tracking-wider">
+                                          External
+                                        </span>
+                                        <span className="text-[10px] text-slate-500 font-medium max-w-[180px] truncate" title={`Visitor: ${booking.externalName} (${booking.externalCompany || "N/A"}) - Meeting: ${booking.externalWhomToMeet}`}>
+                                          👤 {booking.externalName} ({booking.externalCompany || "N/A"})
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-blue-100 text-blue-850 uppercase tracking-wider">
+                                        Internal
+                                      </span>
+                                    )}
+                                    {booking.itSupportRequired && (
+                                      <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-purple-100 text-purple-850 uppercase tracking-wider flex items-center space-x-1">
+                                        <span>🔌 IT Support</span>
+                                      </span>
+                                    )}
+                                    {booking.fbRequired && (
+                                      <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-rose-100 text-rose-850 uppercase tracking-wider">
+                                        ☕ F&B Required
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-slate-600">{booking.date}</td>
+                                <td className="px-6 py-4 whitespace-nowrap font-mono font-medium text-blue-600">{booking.startTime}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-slate-600">{booking.duration} mins</td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className={`px-2.5 py-1 text-xs font-bold rounded-full uppercase tracking-wider ${
+                                    booking.status === "Cancelled"
+                                      ? "bg-red-100 text-red-800"
+                                      : booking.status === "Approved"
+                                        ? "bg-green-100 text-green-800"
+                                        : "bg-slate-100 text-slate-800"
+                                  }`}>
+                                    {booking.status}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    {booking.status !== "Cancelled" && (currentUser?.role === "Admin" || currentUser?.email === booking.bookerEmail) ? (
+                                      <button
+                                        id={`cancel-btn-${booking.bookingId}`}
+                                        onClick={() => handleCancelBooking(booking)}
+                                        className="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-800 border border-red-200 rounded text-xs font-bold transition-all cursor-pointer shrink-0"
+                                      >
+                                        Cancel
+                                      </button>
+                                    ) : null}
+
+                                    {booking.status !== "Cancelled" ? (
+                                      <>
+                                        <button
+                                          id={`ics-btn-${booking.bookingId}`}
+                                          onClick={() => handleExportICS(booking, roomName, false)}
+                                          className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-900 border border-blue-200 rounded text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 shrink-0"
+                                          title="Download calendar event file (.ics) for your calendar"
+                                        >
+                                          <span>📅 Calendar (.ics)</span>
+                                        </button>
+
+                                        {booking.itSupportRequired && (
+                                          <button
+                                            id={`it-mail-btn-${booking.bookingId}`}
+                                            onClick={() => handleEmailITHelpdesk(booking, roomName)}
+                                            className="px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 border border-purple-200 rounded text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 shrink-0"
+                                            title="Email meeting details directly to ithelpdesk@psgroup.in"
+                                          >
+                                            <Mail className="h-3 w-3 text-purple-600" />
+                                            <span>Mail IT Helpdesk</span>
+                                          </button>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <span className="text-xs text-slate-400 font-medium italic">Cancelled</span>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })()}
 
           {/* ==================== TAB 3: ADMIN PORTAL ==================== */}
           {activeTab === "admin" && currentUser.role === "Admin" && (

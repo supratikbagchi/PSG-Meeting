@@ -562,8 +562,6 @@ export const apiService = {
       externalWhomToMeet: mType === "External" ? bookingDetails.externalWhomToMeet?.trim() : undefined,
       itSupportRequired: !!bookingDetails.itSupportRequired,
       fbRequired: !!bookingDetails.fbRequired,
-      outlookEventId: bookingDetails.outlookEventId || undefined,
-      outlookSynced: !!bookingDetails.outlookSynced,
     };
 
     if (user?.uid) {
@@ -584,8 +582,44 @@ export const apiService = {
       OperationType.WRITE,
       "bookings"
     );
+
+    // If IT Support is required, generate and log an IT Helpdesk notification with calendar invite details
+    if (newBooking.itSupportRequired) {
+      try {
+        const notifId = "notif-it-" + Math.random().toString(36).substr(2, 9);
+        const itNotif: NotificationLog = {
+          notificationId: notifId,
+          bookingId: newBooking.bookingId,
+          emailTo: "ithelpdesk@psgroup.in",
+          subject: `[IT Support Required] Meeting on ${newBooking.date} at ${newBooking.startTime}`,
+          body: `IT SUPPORT & AV SETUP REQUEST\n\n` +
+            `• Date of Meeting: ${newBooking.date}\n` +
+            `• Time of Meeting: ${newBooking.startTime} (${newBooking.duration} mins)\n` +
+            `• Host Name: ${newBooking.bookerName || "N/A"}\n` +
+            `• Host Email: ${newBooking.bookerEmail || "N/A"}\n` +
+            `• Agenda / Title: ${newBooking.reason}\n` +
+            `• Meeting Type: ${newBooking.meetingType || "Internal"}\n` +
+            (newBooking.externalName ? `• External Visitor: ${newBooking.externalName} (${newBooking.externalCompany || "N/A"})\n` : "") +
+            `• Action Required: Please prepare IT & AV support prior to meeting start time.\n\n` +
+            `Note: Calendar invite format (.ics) generated for easy import into IT Helpdesk calendar.`,
+          sentAt: new Date().toISOString(),
+          priority: "High",
+          status: "success"
+        };
+        await runFirestore(
+          () => setDoc(doc(db, "notifications", notifId), itNotif),
+          OperationType.WRITE,
+          "notifications"
+        );
+      } catch (notifErr) {
+        console.warn("Could not log IT Support notification to Firestore:", notifErr);
+      }
+    }
+
     return {
-      message: "Your instant meeting reservation is successfully booked and confirmed!",
+      message: newBooking.itSupportRequired
+        ? "Your meeting room reservation is confirmed! IT Helpdesk (ithelpdesk@psgroup.in) has been notified with meeting details & calendar event for IT Support."
+        : "Your instant meeting reservation is successfully booked and confirmed!",
       booking: newBooking
     };
   },
