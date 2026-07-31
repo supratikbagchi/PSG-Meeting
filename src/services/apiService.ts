@@ -1,4 +1,4 @@
-import { User, Room, Booking, NotificationLog, Recommendation, AdminActivityLog, ExternalGuest } from "../types";
+import { User, Room, Booking, NotificationLog, Recommendation, AdminActivityLog, ExternalGuest, FeedbackItem } from "../types";
 import { db, auth, hashPassword, seedFirestoreIfNeeded, handleFirestoreError, OperationType } from "./firebase";
 import {
   collection,
@@ -410,14 +410,15 @@ export const apiService = {
   /**
    * Create a new corporate meeting room
    */
-  async addRoom(name: string, capacity: number, features: string[]): Promise<Room> {
+  async addRoom(name: string, capacity: number, features: string[], floor?: string): Promise<Room> {
     await ensureDb();
     const roomId = "room-" + Math.random().toString(36).substr(2, 9);
     const room: Room = {
       roomId,
       name,
       capacity: Number(capacity),
-      features
+      features,
+      floor: floor || "Floor 1"
     };
 
     await runFirestore(
@@ -425,20 +426,21 @@ export const apiService = {
       OperationType.WRITE,
       "rooms"
     );
-    await addAdminActivity("Create Room", `Added new meeting room: ${name} (Capacity: ${capacity})`);
+    await addAdminActivity("Create Room", `Added new meeting room: ${name} (Capacity: ${capacity}, Floor: ${floor || "Floor 1"})`);
     return room;
   },
 
   /**
    * Modify properties of an existing meeting room
    */
-  async updateRoom(roomId: string, name: string, capacity: number, features: string[]): Promise<Room> {
+  async updateRoom(roomId: string, name: string, capacity: number, features: string[], floor?: string): Promise<Room> {
     await ensureDb();
     const room: Room = {
       roomId,
       name,
       capacity: Number(capacity),
-      features
+      features,
+      floor: floor || "Floor 1"
     };
 
     await runFirestore(
@@ -522,7 +524,7 @@ export const apiService = {
     await ensureDb();
 
     if (!bookingDetails.reason || !bookingDetails.reason.trim()) {
-      throw new Error("Reason for booking is mandatory and must be filled.");
+      throw new Error("Meeting Agenda is mandatory and must be filled.");
     }
 
     // Capture meeting type (mandatory)
@@ -536,10 +538,19 @@ export const apiService = {
       }
     }
 
-    // Limit maximum duration to 3 hours (180 minutes)
+    // Limit maximum duration to 1 hour (60 minutes)
     const durationNum = Number(bookingDetails.duration);
-    if (durationNum > 180) {
-      throw new Error("Maximum duration for any booking is limited to 3 hours (180 minutes).");
+    if (durationNum > 60) {
+      throw new Error("Meeting duration is restricted to a maximum of 1 hour (60 minutes).");
+    }
+
+    // Restrict bookings to up to 5 days in advance
+    const todayObj = new Date();
+    const maxDateObj = new Date();
+    maxDateObj.setDate(todayObj.getDate() + 5);
+    const maxBookingDateISO = maxDateObj.toLocaleDateString("en-CA");
+    if (bookingDetails.date > maxBookingDateISO) {
+      throw new Error(`Bookings are restricted to up to 5 days in advance. You cannot book beyond ${maxBookingDateISO}.`);
     }
 
     const user = this.getCachedUser();
@@ -871,19 +882,20 @@ export const apiService = {
   // ==================== RECOMMENDATIONS / AVAILABILITY SERVICE ====================
 
   /**
-   * Query 15-minute timeslot recommendations based on date, duration, and capacity
+   * Query timeslot recommendations based on date, duration, capacity, and floor
    */
   async checkAvailability(query: {
     date: string;
     attendeesCount: number;
     duration: number;
     features?: string[];
+    floor?: string;
     clientDate?: string;
     clientTime?: string;
   }): Promise<Recommendation[]> {
     await ensureDb();
 
-    const { date, attendeesCount, duration, features, clientDate, clientTime } = query;
+    const { date, attendeesCount, duration, features, floor, clientDate, clientTime } = query;
 
     if (!date || !duration) {
       throw new Error("Date and meeting duration are required");
@@ -893,9 +905,12 @@ export const apiService = {
     const requestedCapacity = attendeesCount ? Number(attendeesCount) : 0;
     const reqDuration = Number(duration);
 
-    // 1. Filter rooms meeting minimum requirements and feature requirements
+    // 1. Filter rooms meeting minimum requirements, floor, and feature requirements
     const suitableRooms = rooms.filter(r => {
       if (r.capacity < requestedCapacity) return false;
+      if (floor && floor !== "All" && r.floor && String(r.floor).toLowerCase() !== floor.toLowerCase()) {
+        return false;
+      }
       if (features && features.length > 0) {
         const hasAll = features.every(f =>
           r.features && r.features.some(rf => rf.toLowerCase() === f.toLowerCase())
@@ -905,13 +920,14 @@ export const apiService = {
       return true;
     });
 
-    // Corporate Work Hours: 09:00 to 20:00 (9:00 AM to 8:00 PM)
-    const workStart = 9 * 60; // 540 minutes (09:00)
-    const workEnd = 20 * 60;  // 1200 minutes (20:00 / 8:00 PM)
+    // Corporate Work Hours: 10:00 to 19:00 (10:00 AM to 7:00 PM)
+    const workStart = 10 * 60; // 600 minutes (10:00 AM)
+    const workEnd = 19 * 60;  // 1140 minutes (19:00 / 7:00 PM)
 
-    // Generate intervals in 30-minute increments while accommodating 15-minute room service gaps via overlap validation
+    // Generate intervals in 15-minute increments (e.g. 10:00, 10:15, 10:30, 10:45...)
+    // so slots directly following a 15-minute post-meeting cleaning buffer are available to book
     const intervals: number[] = [];
-    for (let m = workStart; m + reqDuration <= workEnd; m += 30) {
+    for (let m = workStart; m + reqDuration <= workEnd; m += 15) {
       intervals.push(m);
     }
 
@@ -1180,5 +1196,102 @@ export const apiService = {
       OperationType.UPDATE,
       "bookings"
     );
+  },
+
+  // ==================== FEEDBACK SERVICE ====================
+
+  /**
+   * Submit user feedback regarding amenities and app experience
+   */
+  async submitFeedback(feedback: {
+    bookingId?: string;
+    roomId?: string;
+    roomName?: string;
+    userId?: string;
+    userEmail: string;
+    userName: string;
+    ratingAmenities: number;
+    ratingApp: number;
+    comments: string;
+  }): Promise<FeedbackItem> {
+    await ensureDb();
+    const feedbackId = "fb-" + Math.random().toString(36).substr(2, 9);
+    const newFeedback: FeedbackItem = {
+      feedbackId,
+      bookingId: feedback.bookingId || "",
+      roomName: feedback.roomName || "General Experience",
+      userEmail: feedback.userEmail,
+      userName: feedback.userName,
+      amenitiesRating: Number(feedback.ratingAmenities) || 5,
+      appRating: Number(feedback.ratingApp) || 5,
+      comments: feedback.comments || "",
+      createdAt: new Date().toISOString()
+    };
+
+    await runFirestore(
+      () => setDoc(doc(db, "feedbacks", feedbackId), newFeedback),
+      OperationType.WRITE,
+      "feedbacks"
+    );
+    return newFeedback;
+  },
+
+  /**
+   * Fetch all submitted feedback
+   */
+  async getFeedbacks(): Promise<FeedbackItem[]> {
+    await ensureDb();
+    const snapshot = await runFirestore(
+      () => getDocs(collection(db, "feedbacks")),
+      OperationType.GET,
+      "feedbacks"
+    );
+    const list: FeedbackItem[] = [];
+    snapshot.forEach(d => {
+      list.push(d.data() as FeedbackItem);
+    });
+    list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return list;
+  },
+
+  /**
+   * Send automated polite feedback request email to organizer
+   */
+  async sendFeedbackRequestEmail(booking: {
+    bookingId: string;
+    roomName?: string;
+    date: string;
+    startTime: string;
+    bookerName?: string;
+    bookerEmail?: string;
+  }, roomNameParam?: string): Promise<{ message: string }> {
+    const finalRoomName = roomNameParam || booking.roomName || "the meeting room";
+    const subject = `[Feedback Request] How was your meeting in ${finalRoomName}?`;
+    const body = `Dear ${booking.bookerName || "Organizer"},\n\n` +
+      `Thank you for using the PS Group Meeting Room Booking Portal!\n\n` +
+      `We hope your recent meeting in ${finalRoomName} on ${booking.date} at ${booking.startTime} went seamlessly and productively.\n\n` +
+      `We strive to maintain high-quality facilities, clean environments, and reliable technology (AC, Wi-Fi, AV/projector) alongside a seamless booking experience. Could you please take a quick moment to share your valuable feedback with us?\n\n` +
+      `You can submit your ratings directly via the Feedback tab in the portal or reply to this message with any suggestions.\n\n` +
+      `Your thoughts help us continuously refine our meeting amenities for all corporate teams.\n\n` +
+      `Warm regards,\n` +
+      `PS Group Facility & Operations Team`;
+
+    try {
+      await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: booking.bookerEmail || "supratik@psgroup.in",
+          subject,
+          body,
+          priority: "Normal",
+          bookingId: booking.bookingId
+        })
+      });
+    } catch (err) {
+      console.warn("Could not dispatch feedback request email:", err);
+    }
+
+    return { message: `Feedback request email sent to ${booking.bookerEmail || "organizer"}.` };
   }
 };

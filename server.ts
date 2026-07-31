@@ -227,20 +227,31 @@ function generateIcsContent(
 
   const bookingDateStr = booking?.date || now.toISOString().split("T")[0];
   const startTimeStr = booking?.startTime || "09:00";
-  const durationMins = booking?.duration || 60;
+  const durationMins = Number(booking?.duration) || 60;
 
-  const [year, month, day] = bookingDateStr.split("-").map(Number);
-  const [hour, minute] = startTimeStr.split(":").map(Number);
+  const [y, m, d] = bookingDateStr.split("-").map(Number);
+  const [h, min] = startTimeStr.split(":").map(Number);
 
-  const startDate = new Date(year || now.getFullYear(), (month || 1) - 1, day || 1, hour || 9, minute || 0, 0);
-  const endDate = new Date(startDate.getTime() + durationMins * 60000);
+  const year = y || now.getFullYear();
+  const month = m || 1;
+  const day = d || 1;
+  const hour = h || 0;
+  const minute = min || 0;
 
-  const formatIcsDate = (d: Date) => {
-    return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
-  };
+  // Format times with Asia/Kolkata timezone (IST: UTC+05:30)
+  const dtStart = `${year}${pad(month)}${pad(day)}T${pad(hour)}${pad(minute)}00`;
 
-  const dtStart = formatIcsDate(startDate);
-  const dtEnd = formatIcsDate(endDate);
+  const totalEndMins = hour * 60 + minute + durationMins;
+  const endHour = Math.floor(totalEndMins / 60) % 24;
+  const endMinute = totalEndMins % 60;
+  const dayOffset = Math.floor(totalEndMins / 1440);
+
+  const endDateObj = new Date(year, month - 1, day + dayOffset);
+  const endYear = endDateObj.getFullYear();
+  const endMonth = endDateObj.getMonth() + 1;
+  const endDay = endDateObj.getDate();
+
+  const dtEnd = `${endYear}${pad(endMonth)}${pad(endDay)}T${pad(endHour)}${pad(endMinute)}00`;
 
   const uid = (booking?.bookingId || "booking-" + Date.now()) + "@psgroup.in";
   const summary = booking?.reason ? `Meeting: ${booking.reason}` : "Meeting Room Reservation";
@@ -265,6 +276,7 @@ function generateIcsContent(
     `• Host: ${organizerName} (${organizerEmail})\n` +
     `• Department: ${booking?.department || "N/A"}\n` +
     `• Duration: ${durationMins} minutes\n` +
+    `• Time Zone: Indian Standard Time (IST - Asia/Kolkata)\n` +
     `• Agenda: ${booking?.reason || "Corporate Meeting"}`
   );
 
@@ -274,11 +286,22 @@ function generateIcsContent(
     "PRODID:-//PS Group//Meeting Room Portal//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:REQUEST",
+    "X-WR-TIMEZONE:Asia/Kolkata",
+    "BEGIN:VTIMEZONE",
+    "TZID:Asia/Kolkata",
+    "X-LIC-LOCATION:Asia/Kolkata",
+    "BEGIN:STANDARD",
+    "TZOFFSETFROM:+0530",
+    "TZOFFSETTO:+0530",
+    "TZNAME:IST",
+    "DTSTART:19700101T000000",
+    "END:STANDARD",
+    "END:VTIMEZONE",
     "BEGIN:VEVENT",
     `UID:${uid}`,
     `DTSTAMP:${dtStamp}`,
-    `DTSTART:${dtStart}`,
-    `DTEND:${dtEnd}`,
+    `DTSTART;TZID=Asia/Kolkata:${dtStart}`,
+    `DTEND;TZID=Asia/Kolkata:${dtEnd}`,
     `SUMMARY:${cleanStr(summary)}`,
     `DESCRIPTION:${description}`,
     `LOCATION:${cleanStr(location)}`,
@@ -293,13 +316,145 @@ function generateIcsContent(
   return icsLines.join("\r\n");
 }
 
+interface StructuredEmailOptions {
+  title: string;
+  badgeText?: string;
+  badgeBg?: string;
+  badgeColor?: string;
+  recipientName?: string;
+  summaryText: string;
+  details: Array<{ label: string; value: string; highlight?: boolean }>;
+  noteText?: string;
+  actionUrl?: string;
+  actionText?: string;
+}
+
+function buildStructuredEmailDraft(opts: StructuredEmailOptions): { html: string; text: string } {
+  const {
+    title,
+    badgeText,
+    badgeBg = "#2563eb",
+    badgeColor = "#ffffff",
+    recipientName,
+    summaryText,
+    details,
+    noteText,
+    actionUrl,
+    actionText,
+  } = opts;
+
+  const htmlRows = details
+    .map(
+      (d) => `
+      <tr>
+        <td style="padding: 10px 14px; font-weight: 600; color: #475569; width: 38%; border-bottom: 1px solid #f1f5f9; vertical-align: top; font-size: 13px;">${d.label}</td>
+        <td style="padding: 10px 14px; color: ${d.highlight ? "#0f172a" : "#334155"}; font-weight: ${d.highlight ? "700" : "500"}; border-bottom: 1px solid #f1f5f9; font-size: 13px;">${d.value}</td>
+      </tr>`
+    )
+    .join("");
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 28px 12px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(15,23,42,0.06);">
+          <!-- Top Header Banner -->
+          <tr>
+            <td style="background-color: #0f172a; padding: 24px 32px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td>
+                    <span style="font-size: 20px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; display: block;">PS GROUP</span>
+                    <span style="font-size: 12px; color: #94a3b8; display: block; margin-top: 2px;">Corporate Meeting Room Management Portal</span>
+                  </td>
+                  ${
+                    badgeText
+                      ? `<td align="right">
+                          <span style="background-color: ${badgeBg}; color: ${badgeColor}; padding: 6px 14px; border-radius: 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; display: inline-block;">${badgeText}</span>
+                        </td>`
+                      : ""
+                  }
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Main Content -->
+          <tr>
+            <td style="padding: 32px;">
+              <h2 style="margin: 0 0 12px 0; font-size: 20px; font-weight: 700; color: #0f172a; letter-spacing: -0.3px;">${title}</h2>
+              ${recipientName ? `<p style="margin: 0 0 16px 0; font-size: 14px; color: #334155;">Dear <strong>${recipientName}</strong>,</p>` : ""}
+              <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #475569;">${summaryText}</p>
+
+              <!-- Details Box -->
+              <div style="background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 24px;">
+                <div style="background-color: #f1f5f9; padding: 10px 14px; border-bottom: 1px solid #e2e8f0; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">
+                  Event &amp; Reservation Details
+                </div>
+                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
+                  ${htmlRows}
+                </table>
+              </div>
+
+              ${
+                noteText
+                  ? `<div style="background-color: #eff6ff; border-left: 4px solid #2563eb; padding: 12px 16px; border-radius: 4px; font-size: 13px; color: #1e40af; line-height: 1.5; margin-bottom: 24px;">
+                      <strong>Note:</strong> ${noteText}
+                    </div>`
+                  : ""
+              }
+
+              ${
+                actionUrl && actionText
+                  ? `<div style="text-align: center; margin: 28px 0 12px 0;">
+                      <a href="${actionUrl}" style="background-color: #0f172a; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-size: 13px; font-weight: 700; display: inline-block;">${actionText}</a>
+                    </div>`
+                  : ""
+              }
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f1f5f9; padding: 20px 32px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; text-align: center; line-height: 1.5;">
+              <strong>PS Group Corporate Facilities &amp; IT Operations</strong><br/>
+              This is an automated notification from the Meeting Room Portal. For support, contact <a href="mailto:ithelpdesk@psgroup.in" style="color: #2563eb; text-decoration: none;">ithelpdesk@psgroup.in</a>.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const textDetails = details.map((d) => `• ${d.label}: ${d.value}`).join("\n");
+  const text = `${title.toUpperCase()}\n${"=".repeat(title.length)}\n\n` +
+    (recipientName ? `Dear ${recipientName},\n\n` : "") +
+    `${summaryText}\n\n` +
+    `SUMMARY DETAILS:\n` +
+    `${textDetails}\n\n` +
+    (noteText ? `NOTE: ${noteText}\n\n` : "") +
+    `---\nPS Group Corporate Facilities & IT Operations\nContact: ithelpdesk@psgroup.in`;
+
+  return { html, text };
+}
+
 async function sendEmailNotification(
   to: string,
   subject: string,
   body: string,
   priority: "Normal" | "High",
   bookingId: string,
-  bookingData?: any
+  bookingData?: any,
+  customHtml?: string
 ) {
   const dbObj = getDatabase();
   const transporter = getTransporter();
@@ -330,6 +485,20 @@ async function sendEmailNotification(
     }
   }
 
+  // Construct structured HTML email template if not explicitly provided
+  const htmlBody = customHtml || buildStructuredEmailDraft({
+    title: subject.replace(/^\[.*?\]\s*/, ""),
+    badgeText: priority === "High" ? "HIGH PRIORITY" : "NOTICE",
+    badgeBg: priority === "High" ? "#dc2626" : "#2563eb",
+    summaryText: body,
+    details: [
+      { label: "Notification Subject", value: subject, highlight: true },
+      { label: "Target Recipient", value: recipient },
+      { label: "Timestamp", value: new Date().toLocaleString() }
+    ],
+    noteText: "Sent via PS Group Corporate Meeting Portal Notification Service."
+  }).html;
+
   const mailOptions: any = {
     from: senderUser,
     to: recipient,
@@ -340,12 +509,12 @@ async function sendEmailNotification(
     replyTo: senderUser,
     subject,
     text: body,
-    html: body.replace(/\n/g, "<br/>"),
+    html: htmlBody,
     headers: priority === "High" ? { "X-Priority": "1", "X-MSMail-Priority": "High", Importance: "high" } : undefined,
   };
 
   // Attach .ics iCalendar file for calendar invites if booking details exist
-  if (bookingData || (bookingId && bookingId !== "general")) {
+  if (bookingData || (bookingId && bookingId !== "general" && bookingId !== "account-approval")) {
     const icsContent = generateIcsContent(bookingData || { bookingId, reason: subject }, recipient);
     const icsFilename = `meeting-invite-${bookingId || "booking"}.ics`;
 
@@ -358,14 +527,14 @@ async function sendEmailNotification(
     ];
   }
 
-  // 1. Try Resend API if RESEND_API_KEY is configured
+  // 1. Primary Dispatch via Resend API
   if (process.env.RESEND_API_KEY) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY);
-      const fromAddress = process.env.RESEND_FROM_EMAIL || "Meeting Portal <onboarding@resend.dev>";
+      const fromAddress = process.env.RESEND_FROM_EMAIL || "PS Group Meeting Portal <onboarding@resend.dev>";
 
       let resendAttachments: any[] = [];
-      if (bookingData || (bookingId && bookingId !== "general")) {
+      if (bookingData || (bookingId && bookingId !== "general" && bookingId !== "account-approval")) {
         const icsContent = generateIcsContent(bookingData || { bookingId, reason: subject }, recipient);
         const icsFilename = `meeting-invite-${bookingId || "booking"}.ics`;
         resendAttachments.push({
@@ -380,7 +549,7 @@ async function sendEmailNotification(
         to: [recipient],
         subject,
         text: body,
-        html: body.replace(/\n/g, "<br/>"),
+        html: htmlBody,
         attachments: resendAttachments.length > 0 ? resendAttachments : undefined,
       });
 
@@ -389,12 +558,23 @@ async function sendEmailNotification(
       }
 
       status = "success";
-      statusMessage = `Email and Calendar Invite (.ics) successfully delivered via Resend API to ${recipient} (ID: ${resendResponse.data?.id})`;
-      console.log(`[Resend Success] Sent email & .ics invite to ${recipient} | Resend ID: ${resendResponse.data?.id}`);
+      statusMessage = `Email and Calendar Invite (.ics) delivered via Resend API to ${recipient} (ID: ${resendResponse.data?.id})`;
+      console.log(`[Resend API Success] Sent email to ${recipient} | Resend ID: ${resendResponse.data?.id}`);
     } catch (resendErr: any) {
       console.error("Resend API Delivery Error:", resendErr?.message || resendErr);
       status = "failed";
       statusMessage = `Resend API Delivery Error: ${resendErr?.message || String(resendErr)}`;
+
+      // Fallback to SMTP if configured
+      if (transporter) {
+        try {
+          await transporter.sendMail(mailOptions);
+          status = "success";
+          statusMessage += " (Fallback to SMTP succeeded)";
+        } catch (smtpErr: any) {
+          statusMessage += ` (SMTP Fallback Error: ${smtpErr?.message || String(smtpErr)})`;
+        }
+      }
     }
   } else if (transporter) {
     try {
@@ -479,10 +659,24 @@ async function checkPendingBookingsAndNotify() {
     const roomName = room ? room.name : "Unknown Room";
 
     const subject = `[HIGH-PRIORITY ALERT] Booking Request #${booking.bookingId} is Still Pending Approval!`;
-    const body = `Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: ${roomName}\nRequested By: ${userName} (${userEmail})\nDate: ${booking.date}\nTime: ${booking.startTime} (${booking.duration} mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.`;
+    const pendingDraft = buildStructuredEmailDraft({
+      title: "Pending Booking Approval Reminder",
+      badgeText: "ACTION REQUIRED",
+      badgeBg: "#dc2626",
+      recipientName: "Portal Administrator",
+      summaryText: "Attention Admin: A meeting room reservation request has been awaiting administrator approval for over 2 minutes.",
+      details: [
+        { label: "Reservation ID", value: booking.bookingId },
+        { label: "Meeting Room", value: roomName, highlight: true },
+        { label: "Requested By", value: `${userName} (${userEmail})` },
+        { label: "Date & Time", value: `${booking.date} at ${booking.startTime} (${booking.duration} mins)` },
+        { label: "Current Status", value: "PENDING APPROVAL" }
+      ],
+      noteText: "Please log in to the Meeting Room Portal immediately to approve or reject this request."
+    });
 
     try {
-      await sendEmailNotification(ADMIN_ALERT_EMAIL, subject, body, "High", booking.bookingId);
+      await sendEmailNotification(ADMIN_ALERT_EMAIL, subject, pendingDraft.text, "High", booking.bookingId, undefined, pendingDraft.html);
     } catch (err: any) {
       console.log("[Background Checker Note]", err?.message || err);
     }
@@ -590,16 +784,15 @@ async function startServer() {
     const emailSubject = `[IT Support Required] ${roomName || "Meeting Room"} on ${booking.date} at ${booking.startTime}`;
     let guestInfoText = "";
     if (booking.externalGuests && Array.isArray(booking.externalGuests) && booking.externalGuests.length > 0) {
-      guestInfoText = `• External Guests (${booking.externalGuests.length}):\n` +
-        booking.externalGuests.map((g: any, idx: number) => {
-          let details = `  ${idx + 1}. ${g.name}`;
-          if (g.company) details += ` (${g.company})`;
-          if (g.email) details += ` - Email: ${g.email}`;
-          if (g.phone) details += ` - Phone: ${g.phone}`;
-          return details;
-        }).join("\n") + "\n";
+      guestInfoText = booking.externalGuests.map((g: any, idx: number) => {
+        let details = `${idx + 1}. ${g.name}`;
+        if (g.company) details += ` (${g.company})`;
+        if (g.email) details += ` - ${g.email}`;
+        if (g.phone) details += ` - ${g.phone}`;
+        return details;
+      }).join("; ");
     } else if (booking.externalName) {
-      guestInfoText = `• External Visitor: ${booking.externalName} (${booking.externalCompany || "N/A"})\n`;
+      guestInfoText = `${booking.externalName} (${booking.externalCompany || "N/A"})`;
     }
 
     const emailBody = `IT SUPPORT & AV SETUP REQUEST\n\n` +
@@ -610,19 +803,38 @@ async function startServer() {
       `• Host Email: ${booking.bookerEmail || "N/A"}\n` +
       `• Agenda / Title: ${booking.reason || "N/A"}\n` +
       `• Meeting Type: ${booking.meetingType || "Internal"}\n` +
-      guestInfoText +
+      (guestInfoText ? `• External Visitors: ${guestInfoText}\n` : "") +
       `• Action Required: Please prepare IT & AV support prior to meeting start time.`;
+
+    const itDraft = buildStructuredEmailDraft({
+      title: "IT Support & AV Setup Request",
+      badgeText: "IT SUPPORT REQ",
+      badgeBg: "#2563eb",
+      recipientName: "IT Helpdesk Team",
+      summaryText: "An IT Support and AV Setup request has been submitted for an upcoming corporate meeting. Please ensure all audio-visual technology and room connectivity are prepared prior to the meeting start time.",
+      details: [
+        { label: "Meeting Room", value: roomName || "N/A", highlight: true },
+        { label: "Date & Time", value: `${booking.date} at ${booking.startTime} (${booking.duration || 60} mins)` },
+        { label: "Meeting Agenda", value: booking.reason || "N/A" },
+        { label: "Host Name", value: booking.bookerName || "N/A" },
+        { label: "Host Email", value: booking.bookerEmail || "N/A" },
+        { label: "Meeting Type", value: booking.meetingType || "Internal" },
+        { label: "External Visitors", value: guestInfoText || "None" }
+      ],
+      noteText: "Action Required: Please check projector/TV display, HDMI dongles, conference phone, Wi-Fi connectivity, and room climate control before meeting start."
+    });
 
     const result = await sendEmailNotification(
       "supratik@psgroup.in",
       emailSubject,
-      emailBody,
+      itDraft.text,
       "High",
       booking.bookingId || "general",
       {
         ...booking,
         roomName: roomName || booking.roomName
-      }
+      },
+      itDraft.html
     );
 
     return res.json(result);
@@ -899,15 +1111,30 @@ async function startServer() {
     saveDatabase(dbObj);
 
     // Prompt user confirmation email right away
-    const subject = `[Booking Confirmed] Meeting Room Reserve: ${room.name}`;
-    const body = `Dear ${bookerName},\n\nYour meeting room reservation has been successfully booked on a first-come, first-served basis.\n\nRoom: ${room.name}\nDate: ${date}\nTime: ${startTime} (${duration} minutes)\nAttendees: ${attendeesCount || "N/A"}\n\nThank you,\nCorporate Operations`;
+    const subject = `[Booking Confirmed] ${room.name} on ${date} at ${startTime}`;
+    const confirmDraft = buildStructuredEmailDraft({
+      title: "Meeting Room Reservation Confirmed",
+      badgeText: "CONFIRMED",
+      badgeBg: "#10b981",
+      recipientName: bookerName,
+      summaryText: `Your meeting room reservation at PS Group has been successfully confirmed on a first-come, first-served basis. The room slot is now locked for your team.`,
+      details: [
+        { label: "Meeting Room", value: room.name, highlight: true },
+        { label: "Date & Time Slot", value: `${date} at ${startTime}` },
+        { label: "Duration", value: `${dur} minutes` },
+        { label: "Organizer Name", value: bookerName },
+        { label: "Organizer Email", value: bookerEmail },
+        { label: "Attendees Count", value: attendeesCount ? `${attendeesCount} participants` : "N/A" }
+      ],
+      noteText: "An iCalendar (.ics) event file is attached. Opening the attachment will automatically save this reservation to your Outlook or Google calendar."
+    });
 
     // Async trigger email
-    sendEmailNotification("supratik@psgroup.in", subject, body, "Normal", newBooking.bookingId, {
+    sendEmailNotification("supratik@psgroup.in", subject, confirmDraft.text, "Normal", newBooking.bookingId, {
       ...newBooking,
       roomName: room.name,
       reason: (newBooking as any).reason || subject,
-    }).catch(() => {});
+    }, confirmDraft.html).catch(() => {});
 
     res.status(201).json({
       message: "Room booked successfully! Your reservation is active.",
@@ -928,19 +1155,30 @@ async function startServer() {
       saveDatabase(dbObj);
     }
 
+    const targetRoom = booking ? dbObj.rooms.find((r) => r.roomId === booking.roomId) : null;
+    const roomName = targetRoom ? targetRoom.name : (booking?.roomId || "Meeting Room");
+
     // Send cancellation notification email
     const recipient = "supratik@psgroup.in";
-    const subject = `[RESERVATION CANCELLED] Meeting Room Reservation #${bookingId}`;
-    const body = `MEETING ROOM RESERVATION CANCELLED\n\n` +
-      `• Reservation ID: ${bookingId}\n` +
-      `• Date: ${booking?.date || "N/A"}\n` +
-      `• Start Time: ${booking?.startTime || "N/A"}\n` +
-      `• Booker: ${booking?.bookerName || "Employee"} (${booking?.bookerEmail || "N/A"})\n` +
-      `• Reason: ${booking?.reason || "N/A"}\n\n` +
-      `Status: CANCELLED\n` +
-      `This meeting room reservation has been cancelled and the slot is now free for booking.`;
+    const subject = `[RESERVATION CANCELLED] ${roomName} - #${bookingId}`;
 
-    sendEmailNotification(recipient, subject, body, "Normal", bookingId).catch(() => {});
+    const cancelDraft = buildStructuredEmailDraft({
+      title: "Meeting Room Reservation Cancelled",
+      badgeText: "CANCELLED",
+      badgeBg: "#ef4444",
+      recipientName: booking?.bookerName || "Employee",
+      summaryText: "This email confirms that your meeting room reservation has been cancelled. The time slot has been released back into the portal for other colleagues to book.",
+      details: [
+        { label: "Reservation ID", value: bookingId },
+        { label: "Meeting Room", value: roomName, highlight: true },
+        { label: "Date & Released Time", value: `${booking?.date || "N/A"} at ${booking?.startTime || "N/A"}` },
+        { label: "Host / Booker", value: `${booking?.bookerName || "Employee"} (${booking?.bookerEmail || "N/A"})` },
+        { label: "Cancellation Timestamp", value: new Date().toLocaleString() }
+      ],
+      noteText: "If this cancellation was unintended, you can create a new reservation anytime through the Meeting Room Portal."
+    });
+
+    sendEmailNotification(recipient, subject, cancelDraft.text, "Normal", bookingId, undefined, cancelDraft.html).catch(() => {});
 
     return res.json({
       message: "Meeting room reservation cancelled successfully.",
@@ -1137,8 +1375,21 @@ async function startServer() {
 
     if (approved && !previousApproval) {
       const subject = "Your Meeting Room Portal Account has been Approved!";
-      const body = `Dear ${targetUser.name},\n\nAn administrator has approved your registration for the Meeting Room Portal.\n\nYou can now log in at ${process.env.APP_URL || "the portal URL"} and start booking corporate meeting rooms.\n\nThank you,\nCorporate Operations`;
-      sendEmailNotification(targetUser.email, subject, body, "Normal", "account-approval").catch(() => {});
+      const approveDraft = buildStructuredEmailDraft({
+        title: "Account Approved - Welcome to PS Group Meeting Portal",
+        badgeText: "ACCOUNT APPROVED",
+        badgeBg: "#6366f1",
+        recipientName: targetUser.name,
+        summaryText: "Your registration for the PS Group Meeting Room Portal has been reviewed and approved by an administrator.",
+        details: [
+          { label: "User Name", value: targetUser.name, highlight: true },
+          { label: "Account Email", value: targetUser.email },
+          { label: "Assigned Role", value: targetUser.role },
+          { label: "Account Status", value: "Active & Approved" }
+        ],
+        noteText: "You can now log in to view real-time room availability, reserve conference spaces, and request IT/F&B support."
+      });
+      sendEmailNotification(targetUser.email, subject, approveDraft.text, "Normal", "account-approval", undefined, approveDraft.html).catch(() => {});
     }
 
     res.json({

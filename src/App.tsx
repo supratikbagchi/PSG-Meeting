@@ -36,7 +36,9 @@ import {
   DoorClosed,
   Cpu,
   CheckCircle2,
-  Coffee
+  Coffee,
+  MessageSquare,
+  Star
 } from "lucide-react";
 import { apiService } from "./services/apiService";
 import { onAuthStateChanged } from "firebase/auth";
@@ -105,7 +107,19 @@ export default function App() {
 
   // View & Navigation States
   const [authMode, setAuthMode] = useState<"login" | "register" | "forgot">("login");
-  const [activeTab, setActiveTab] = useState<"book" | "my-bookings" | "admin">("book");
+  const [activeTab, setActiveTab] = useState<"book" | "my-bookings" | "admin" | "feedback">("book");
+  const [searchTargetTime, setSearchTargetTime] = useState<string>("");
+  const [searchFloor, setSearchFloor] = useState<string>("All");
+
+  // Feedback States
+  const [feedbacks, setFeedbacks] = useState<import("./types").FeedbackItem[]>([]);
+  const [feedbackAmenitiesRating, setFeedbackAmenitiesRating] = useState(5);
+  const [feedbackAppRating, setFeedbackAppRating] = useState(5);
+  const [feedbackComments, setFeedbackComments] = useState("");
+  const [feedbackSelectedBookingId, setFeedbackSelectedBookingId] = useState("");
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [feedbackSuccess, setFeedbackSuccess] = useState<string | null>(null);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
 
   // Core Lists
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -373,6 +387,17 @@ export default function App() {
     setBookingSuccess(null);
     setBookingError(null);
 
+    const todayObj = new Date();
+    const maxDateObj = new Date();
+    maxDateObj.setDate(todayObj.getDate() + 5);
+    const maxBookingDateISO = maxDateObj.toLocaleDateString("en-CA");
+
+    if (searchDate > maxBookingDateISO) {
+      setBookingError(`Bookings are restricted to up to 5 days in advance. You cannot book beyond ${maxBookingDateISO}.`);
+      setSearchingAvailability(false);
+      return;
+    }
+
     const now = new Date();
     const clientDate = now.toLocaleDateString("en-CA");
     const clientTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
@@ -383,6 +408,7 @@ export default function App() {
         attendeesCount: searchAttendees,
         duration: searchDuration,
         features: selectedFeatures,
+        floor: searchFloor,
         clientDate,
         clientTime,
       });
@@ -532,7 +558,7 @@ export default function App() {
       return;
     }
     if (!bookingReason.trim()) {
-      setBookingError("Reason for booking is mandatory and must be filled.");
+      setBookingError("Meeting Agenda is mandatory and must be filled.");
       return;
     }
 
@@ -542,10 +568,24 @@ export default function App() {
         setBookingError("At least one external guest name is required for External meetings.");
         return;
       }
+      const primaryWhomToMeet = validGuests[0]?.whomToMeet?.trim() || externalWhomToMeet.trim();
+      if (!primaryWhomToMeet) {
+        setBookingError("For external bookings, 'Whom to meet' is required.");
+        return;
+      }
     }
 
-    if (Number(searchDuration) > 180) {
-      setBookingError("Maximum duration for any booking is limited to 3 hours (180 minutes).");
+    if (Number(searchDuration) > 60) {
+      setBookingError("Meeting duration is restricted to a maximum of 1 hour (60 minutes).");
+      return;
+    }
+
+    const todayObj = new Date();
+    const maxDateObj = new Date();
+    maxDateObj.setDate(todayObj.getDate() + 5);
+    const maxBookingDateISO = maxDateObj.toLocaleDateString("en-CA");
+    if (searchDate > maxBookingDateISO) {
+      setBookingError(`Bookings are restricted to up to 5 days in advance. You cannot book beyond ${maxBookingDateISO}.`);
       return;
     }
 
@@ -717,6 +757,55 @@ export default function App() {
       URL.revokeObjectURL(url);
     } catch (err: any) {
       alert("Failed to export calendar invitation: " + err.message);
+    }
+  };
+
+  const handleSendFeedbackEmail = async (booking: Booking) => {
+    try {
+      const room = rooms.find(r => r.roomId === booking.roomId);
+      const roomName = room ? room.name : "Meeting Room";
+      await apiService.sendFeedbackRequestEmail(booking, roomName);
+      alert(`Automated feedback request email sent to organizer (${booking.bookerEmail})!`);
+    } catch (err: any) {
+      alert("Error sending feedback request: " + (err.message || "Failed"));
+    }
+  };
+
+  const handleSubmitFeedback = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFeedbackError(null);
+    setFeedbackSuccess(null);
+    setFeedbackSubmitting(true);
+
+    try {
+      const selectedBooking = bookings.find(b => b.bookingId === feedbackSelectedBookingId);
+      const roomName = selectedBooking 
+        ? (rooms.find(r => r.roomId === selectedBooking.roomId)?.name || selectedBooking.roomId)
+        : "General Meeting Area";
+
+      await apiService.submitFeedback({
+        bookingId: feedbackSelectedBookingId || "GENERAL",
+        roomId: selectedBooking?.roomId || "GENERAL",
+        roomName,
+        userId: currentUser?.uid || "GUEST",
+        userName: currentUser?.name || bookerName || "Employee",
+        userEmail: currentUser?.email || bookerEmail || "employee@psgroup.in",
+        ratingAmenities: feedbackAmenitiesRating,
+        ratingApp: feedbackAppRating,
+        comments: feedbackComments.trim()
+      });
+
+      setFeedbackSuccess("Thank you! Your feedback on room amenities and the portal experience has been recorded.");
+      setFeedbackComments("");
+      setFeedbackAmenitiesRating(5);
+      setFeedbackAppRating(5);
+
+      const updatedList = await apiService.getFeedbacks();
+      setFeedbacks(updatedList);
+    } catch (err: any) {
+      setFeedbackError(err.message || "Failed to submit feedback.");
+    } finally {
+      setFeedbackSubmitting(false);
     }
   };
 
@@ -1449,6 +1538,22 @@ export default function App() {
                   <span>Admin Portal</span>
                 </button>
               )}
+
+              <button
+                id="tab-feedback-btn"
+                onClick={() => {
+                  setActiveTab("feedback");
+                  apiService.getFeedbacks().then(setFeedbacks).catch(console.error);
+                }}
+                className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
+                  activeTab === "feedback"
+                    ? "bg-blue-600 text-white shadow-md font-bold"
+                    : "text-slate-300 hover:text-white hover:bg-slate-700"
+                }`}
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>Feedback</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1476,14 +1581,14 @@ export default function App() {
                       <h3 className="font-display font-semibold text-slate-900">Room Preferences</h3>
                     </div>
                     <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200">
-                      🕒 9 AM – 8 PM
+                      🕒 10 AM – 7 PM
                     </span>
                   </div>
 
                   <form onSubmit={triggerAvailabilityCheck} className="space-y-4">
                     <div className="space-y-1">
                       <label htmlFor="search-date" className="block text-xs font-semibold text-slate-600 uppercase">
-                        Date
+                        Date <span className="text-[10px] text-blue-600 font-normal">(Up to 5 days)</span>
                       </label>
                       <div className="relative">
                         <input
@@ -1491,11 +1596,87 @@ export default function App() {
                           type="date"
                           value={searchDate}
                           min={new Date().toLocaleDateString("en-CA")}
+                          max={(() => {
+                            const d = new Date();
+                            d.setDate(d.getDate() + 5);
+                            return d.toLocaleDateString("en-CA");
+                          })()}
                           onChange={(e) => setSearchDate(e.target.value)}
                           className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
                         />
                         <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                       </div>
+                      <p className="text-[10px] text-slate-400">Bookings permitted up to 5 days in advance.</p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label htmlFor="search-floor" className="block text-xs font-semibold text-slate-600 uppercase">
+                        Floor Number
+                      </label>
+                      <select
+                        id="search-floor"
+                        value={searchFloor}
+                        onChange={(e) => setSearchFloor(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
+                      >
+                        <option value="All">All Floors</option>
+                        <option value="Floor 1">Floor 1</option>
+                        <option value="Floor 2">Floor 2</option>
+                        <option value="Floor 3">Floor 3</option>
+                        <option value="Floor 4">Floor 4</option>
+                        <option value="Floor 5">Floor 5</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label htmlFor="search-target-time" className="block text-xs font-semibold text-slate-600 uppercase">
+                        Preferred Meeting Time <span className="text-slate-400 font-normal">(Optional)</span>
+                      </label>
+                      <select
+                        id="search-target-time"
+                        value={searchTargetTime}
+                        onChange={(e) => setSearchTargetTime(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
+                      >
+                        <option value="">Any Time (Show All Slots)</option>
+                        <option value="10:00">10:00 AM</option>
+                        <option value="10:15">10:15 AM</option>
+                        <option value="10:30">10:30 AM</option>
+                        <option value="10:45">10:45 AM</option>
+                        <option value="11:00">11:00 AM</option>
+                        <option value="11:15">11:15 AM</option>
+                        <option value="11:30">11:30 AM</option>
+                        <option value="11:45">11:45 AM</option>
+                        <option value="12:00">12:00 PM</option>
+                        <option value="12:15">12:15 PM</option>
+                        <option value="12:30">12:30 PM</option>
+                        <option value="12:45">12:45 PM</option>
+                        <option value="13:00">01:00 PM</option>
+                        <option value="13:15">01:15 PM</option>
+                        <option value="13:30">01:30 PM</option>
+                        <option value="13:45">01:45 PM</option>
+                        <option value="14:00">02:00 PM</option>
+                        <option value="14:15">02:15 PM</option>
+                        <option value="14:30">02:30 PM</option>
+                        <option value="14:45">02:45 PM</option>
+                        <option value="15:00">03:00 PM</option>
+                        <option value="15:15">03:15 PM</option>
+                        <option value="15:30">03:30 PM</option>
+                        <option value="15:45">03:45 PM</option>
+                        <option value="16:00">04:00 PM</option>
+                        <option value="16:15">04:15 PM</option>
+                        <option value="16:30">04:30 PM</option>
+                        <option value="16:45">04:45 PM</option>
+                        <option value="17:00">05:00 PM</option>
+                        <option value="17:15">05:15 PM</option>
+                        <option value="17:30">05:30 PM</option>
+                        <option value="17:45">05:45 PM</option>
+                        <option value="18:00">06:00 PM</option>
+                        <option value="18:15">06:15 PM</option>
+                        <option value="18:30">06:30 PM</option>
+                        <option value="18:45">06:45 PM</option>
+                      </select>
+                      <p className="text-[10px] text-slate-400">Highlights slots around this time without hiding other available times.</p>
                     </div>
 
                     <div className="space-y-1">
@@ -1519,7 +1700,7 @@ export default function App() {
 
                     <div className="space-y-1">
                       <label htmlFor="search-duration" className="block text-xs font-semibold text-slate-600 uppercase">
-                        Duration
+                        Duration <span className="text-[10px] text-amber-600 font-normal">(Max 1 hour)</span>
                       </label>
                       <div className="relative">
                         <select
@@ -1531,15 +1712,7 @@ export default function App() {
                           <option value="15">15 Minutes</option>
                           <option value="30">30 Minutes</option>
                           <option value="45">45 Minutes</option>
-                          <option value="60">1 Hour</option>
-                          <option value="75">1 Hour 15 Minutes</option>
-                          <option value="90">1.5 Hours</option>
-                          <option value="105">1 Hour 45 Minutes</option>
-                          <option value="120">2 Hours</option>
-                          <option value="135">2 Hours 15 Minutes</option>
-                          <option value="150">2.5 Hours</option>
-                          <option value="165">2 Hours 45 Minutes</option>
-                          <option value="180">3 Hours</option>
+                          <option value="60">1 Hour (Max Allowed)</option>
                         </select>
                         <Clock className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                       </div>
@@ -1631,7 +1804,7 @@ export default function App() {
                       <h3 className="font-display font-semibold text-slate-900 text-lg flex items-center gap-2">
                         <span>Suggested Available Meeting Rooms</span>
                         <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">
-                          Hours: 09:00 AM – 08:00 PM
+                          Hours: 10:00 AM – 07:00 PM
                         </span>
                       </h3>
 
@@ -1655,7 +1828,7 @@ export default function App() {
                     <div className="py-16 text-center">
                       <XCircle className="h-12 w-12 text-slate-300 mx-auto mb-3" />
                       <p className="text-slate-600 font-semibold">No Suitable Rooms Found</p>
-                      <p className="text-xs text-slate-400 mt-1">Adjust attendees size or date query constraint.</p>
+                      <p className="text-xs text-slate-400 mt-1">Adjust attendees size, floor, or date query constraint.</p>
                     </div>
                   ) : (
                     <div className="space-y-6">
@@ -1667,9 +1840,15 @@ export default function App() {
                                 <span className="mr-2 text-blue-600">■</span>
                                 {rec.room.name}
                               </h4>
-                              <div className="flex items-center space-x-1.5 mt-1 text-xs text-slate-500">
-                                <Users className="w-3.5 h-3.5" />
-                                <span>Up to {rec.room.capacity} attendees</span>
+                              <div className="flex items-center space-x-2 mt-1 text-xs text-slate-500">
+                                <div className="flex items-center space-x-1">
+                                  <Users className="w-3.5 h-3.5" />
+                                  <span>Up to {rec.room.capacity} attendees</span>
+                                </div>
+                                <span className="text-slate-300">•</span>
+                                <span className="text-[11px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
+                                  📍 {rec.room.floor || "Floor 1"}
+                                </span>
                               </div>
                             </div>
                             <div className="flex flex-wrap gap-1 mt-2 sm:mt-0">
@@ -1696,6 +1875,7 @@ export default function App() {
                                   const isAvailable = typeof slotObj === "string" ? true : slotObj.isAvailable;
                                   const bookedBy = typeof slotObj === "string" ? null : slotObj.bookedBy;
                                   const isSelected = selectedRoom?.roomId === rec.room.roomId && selectedStartTime === slot;
+                                  const isTarget = searchTargetTime && slot === searchTargetTime;
 
                                   if (!isAvailable) {
                                     return (
@@ -1717,12 +1897,20 @@ export default function App() {
                                       key={slot}
                                       id={`slot-${rec.room.roomId}-${slot}`}
                                       onClick={() => handleSelectSlot(rec.room, slot)}
-                                      className={`py-1.5 px-2 text-xs font-semibold rounded-lg border text-center transition-all cursor-pointer ${
+                                      className={`py-1.5 px-2 text-xs font-semibold rounded-lg border text-center transition-all cursor-pointer relative ${
                                         isSelected
                                           ? "bg-blue-600 text-white border-blue-600 shadow-sm font-bold scale-105"
+                                          : isTarget
+                                          ? "bg-blue-50 text-blue-900 border-blue-500 ring-2 ring-blue-400 font-bold shadow-xs"
                                           : "bg-white text-slate-700 border-slate-200 hover:border-slate-400 hover:bg-slate-50"
                                       }`}
                                     >
+                                      {isTarget && !isSelected && (
+                                        <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                          <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                                        </span>
+                                      )}
                                       {slot}
                                     </button>
                                   );
@@ -1838,17 +2026,18 @@ export default function App() {
 
                           <div className="flex flex-col space-y-1.5 mb-5">
                             <label htmlFor="booking-reason" className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                              Reason for Booking <span className="text-red-500">*</span>
+                              Meeting Agenda <span className="text-red-500">*</span>
                             </label>
                             <input
                               id="booking-reason"
                               type="text"
                               required
+                              placeholder="e.g. Q3 Strategy Discussion"
                               value={bookingReason}
                               onChange={(e) => setBookingReason(e.target.value)}
                               className="w-full px-3.5 py-2.5 bg-slate-850 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500 transition-all"
                             />
-                            <p className="text-[10px] text-slate-500">⚠️ Entering a reservation reason is mandatory for corporate tracking.</p>
+                            <p className="text-[10px] text-slate-500">⚠️ Entering a meeting agenda is mandatory for corporate tracking.</p>
                           </div>
 
                           {/* Meeting Type Selection */}
@@ -1987,10 +2176,11 @@ export default function App() {
 
                                   <div className="flex flex-col space-y-1">
                                     <label className="text-[10px] font-semibold text-slate-400">
-                                      WHOM TO MEET AT PS GROUP <span className="text-slate-500">(Optional)</span>
+                                      WHOM TO MEET AT PS GROUP <span className="text-red-500">* (Mandatory)</span>
                                     </label>
                                     <input
                                       type="text"
+                                      required
                                       placeholder={bookerName || "Employee Name"}
                                       value={guest.whomToMeet || ""}
                                       onChange={(e) => {
@@ -3604,6 +3794,261 @@ export default function App() {
               </div>
             </motion.div>
           )}
+
+          {/* ==================== TAB 4: FEEDBACK & EXPERIENCES ==================== */}
+          {activeTab === "feedback" && (
+            <motion.div
+              key="feedback-tab"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.15 }}
+              className="space-y-8 max-w-4xl mx-auto"
+            >
+              {/* Header Box */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <div className="flex items-center space-x-3 mb-2">
+                  <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+                    <MessageSquare className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-display font-bold text-slate-900">Amenities &amp; App Experience Feedback</h3>
+                    <p className="text-xs text-slate-500">Rate room amenities (AC, Projector, Wi-Fi, Cleanliness) and your booking portal experience.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Feedback Submission Form */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <h4 className="font-display font-semibold text-slate-900 text-base mb-4 border-b border-slate-100 pb-3">
+                  Submit Feedback
+                </h4>
+
+                {feedbackSuccess && (
+                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start space-x-3 text-emerald-800 mb-6">
+                    <CheckCircle className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-emerald-900">Feedback Submitted Successfully</p>
+                      <p className="text-xs text-emerald-700 mt-1">{feedbackSuccess}</p>
+                    </div>
+                  </div>
+                )}
+
+                {feedbackError && (
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start space-x-3 text-red-800 mb-6">
+                    <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-red-900">Submission Error</p>
+                      <p className="text-xs text-red-700 mt-1">{feedbackError}</p>
+                    </div>
+                  </div>
+                )}
+
+                <form onSubmit={handleSubmitFeedback} className="space-y-6">
+                  {/* Select Associated Meeting Room Reservation */}
+                  <div className="space-y-1.5">
+                    <label htmlFor="feedback-booking-select" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                      Select Recent Meeting / Room (Optional)
+                    </label>
+                    <select
+                      id="feedback-booking-select"
+                      value={feedbackSelectedBookingId}
+                      onChange={(e) => setFeedbackSelectedBookingId(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
+                    >
+                      <option value="">General Application Feedback</option>
+                      {bookings.map((b) => {
+                        const r = rooms.find(rm => rm.roomId === b.roomId);
+                        return (
+                          <option key={b.bookingId} value={b.bookingId}>
+                            {r ? r.name : b.roomId} — {b.date} at {b.startTime} ({b.reason || "Meeting"})
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  {/* Room Amenities Rating */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                      Room Amenities Experience (AC, Screen, Wi-Fi, Seating)
+                    </label>
+                    <div className="flex items-center space-x-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={`amenities-star-${star}`}
+                          type="button"
+                          onClick={() => setFeedbackAmenitiesRating(star)}
+                          className={`p-2 rounded-lg transition-all cursor-pointer ${
+                            star <= feedbackAmenitiesRating
+                              ? "text-amber-400 bg-amber-50 hover:bg-amber-100"
+                              : "text-slate-300 hover:text-slate-400 bg-slate-50"
+                          }`}
+                        >
+                          <Star className="h-6 w-6 fill-current" />
+                        </button>
+                      ))}
+                      <span className="text-xs font-bold text-slate-700 ml-2">
+                        {feedbackAmenitiesRating === 5 ? "⭐⭐⭐⭐⭐ Excellent" :
+                         feedbackAmenitiesRating === 4 ? "⭐⭐⭐⭐ Very Good" :
+                         feedbackAmenitiesRating === 3 ? "⭐⭐⭐ Good" :
+                         feedbackAmenitiesRating === 2 ? "⭐⭐ Fair" : "⭐ Needs Improvement"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* App Booking Portal Rating */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                      Portal &amp; Booking Experience
+                    </label>
+                    <div className="flex items-center space-x-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={`app-star-${star}`}
+                          type="button"
+                          onClick={() => setFeedbackAppRating(star)}
+                          className={`p-2 rounded-lg transition-all cursor-pointer ${
+                            star <= feedbackAppRating
+                              ? "text-blue-500 bg-blue-50 hover:bg-blue-100"
+                              : "text-slate-300 hover:text-slate-400 bg-slate-50"
+                          }`}
+                        >
+                          <Star className="h-6 w-6 fill-current" />
+                        </button>
+                      ))}
+                      <span className="text-xs font-bold text-slate-700 ml-2">
+                        {feedbackAppRating === 5 ? "⭐⭐⭐⭐⭐ Outstanding" :
+                         feedbackAppRating === 4 ? "⭐⭐⭐⭐ Great" :
+                         feedbackAppRating === 3 ? "⭐⭐⭐ Satisfactory" :
+                         feedbackAppRating === 2 ? "⭐⭐ Average" : "⭐ Difficult"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Comments */}
+                  <div className="space-y-1.5">
+                    <label htmlFor="feedback-comments" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                      Comments &amp; Improvement Suggestions
+                    </label>
+                    <textarea
+                      id="feedback-comments"
+                      rows={4}
+                      value={feedbackComments}
+                      onChange={(e) => setFeedbackComments(e.target.value)}
+                      placeholder="Share details regarding room temp, screen connectivity, cleanliness, or suggestions for the booking portal..."
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all resize-none"
+                    />
+                  </div>
+
+                  <button
+                    id="submit-feedback-btn"
+                    type="submit"
+                    disabled={feedbackSubmitting}
+                    className="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-md transition-all flex justify-center items-center cursor-pointer disabled:opacity-55"
+                  >
+                    {feedbackSubmitting ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                        <span>Submitting Feedback...</span>
+                      </>
+                    ) : (
+                      <span>Submit Experience Feedback</span>
+                    )}
+                  </button>
+                </form>
+              </div>
+
+              {/* Automated Email Feedback Request Prompt Section */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <h4 className="font-display font-semibold text-slate-900 text-base mb-2">
+                  Request Feedback from Organizer
+                </h4>
+                <p className="text-xs text-slate-500 mb-4">
+                  Send an automated polite feedback request email directly to the meeting organizer after a meeting concludes.
+                </p>
+
+                {bookings.filter(b => b.status === "Approved").length === 0 ? (
+                  <p className="text-xs text-slate-400 italic">No approved bookings available for feedback requests.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {bookings.filter(b => b.status === "Approved").slice(0, 5).map((b) => {
+                      const r = rooms.find(rm => rm.roomId === b.roomId);
+                      return (
+                        <div key={`fb-email-${b.bookingId}`} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                          <div>
+                            <span className="font-bold text-slate-800">{r ? r.name : b.roomId}</span>
+                            <span className="text-slate-400 mx-2">•</span>
+                            <span className="text-slate-600">{b.bookerName} ({b.bookerEmail})</span>
+                            <span className="text-slate-400 mx-2">•</span>
+                            <span className="text-slate-500 font-mono">{b.date} {b.startTime}</span>
+                          </div>
+                          <button
+                            id={`send-fb-req-${b.bookingId}`}
+                            onClick={() => handleSendFeedbackEmail(b)}
+                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer flex items-center space-x-1 shrink-0"
+                          >
+                            <Mail className="h-3.5 w-3.5" />
+                            <span>Send Feedback Email</span>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Feedback History List */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
+                  <h4 className="font-display font-semibold text-slate-900 text-base">
+                    Submitted Portal &amp; Room Feedbacks
+                  </h4>
+                  <button
+                    onClick={() => apiService.getFeedbacks().then(setFeedbacks).catch(console.error)}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg border border-slate-200 transition-all cursor-pointer"
+                    title="Refresh Feedbacks"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {feedbacks.length === 0 ? (
+                  <p className="text-center text-slate-400 py-8 text-xs font-medium">No feedback recorded yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {feedbacks.map((fb) => (
+                      <div key={fb.feedbackId} className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-2">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="font-bold text-slate-900">{fb.roomName}</span>
+                            <span className="text-slate-400 mx-2">•</span>
+                            <span className="text-slate-600 font-medium">{fb.userName} ({fb.userEmail})</span>
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {new Date(fb.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-4 text-slate-700">
+                          <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-bold text-[11px]">
+                            Amenities: {"★".repeat(fb.ratingAmenities)} ({fb.ratingAmenities}/5)
+                          </span>
+                          <span className="bg-blue-100 text-blue-900 px-2 py-0.5 rounded font-bold text-[11px]">
+                            Portal: {"★".repeat(fb.ratingApp)} ({fb.ratingApp}/5)
+                          </span>
+                        </div>
+                        {fb.comments && (
+                          <p className="text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200/80 italic">
+                            "{fb.comments}"
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
         </AnimatePresence>
       </main>
 
@@ -3758,6 +4203,40 @@ export default function App() {
                     {loginError}
                   </div>
                 )}
+
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-2">
+                  <p className="font-semibold text-slate-700">Concurrent Admin Role Sign-In:</p>
+                  <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => { setLoginEmail("admin-reception"); setLoginPassword("QW!@12"); }}
+                      className="px-2 py-1 bg-white border border-slate-200 rounded text-left hover:border-blue-500 font-medium cursor-pointer"
+                    >
+                      🏢 Receptionist
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setLoginEmail("admin-hospitality"); setLoginPassword("QW!@12"); }}
+                      className="px-2 py-1 bg-white border border-slate-200 rounded text-left hover:border-blue-500 font-medium cursor-pointer"
+                    >
+                      ☕ Hospitality Dept
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setLoginEmail("admin-it"); setLoginPassword("QW!@12"); }}
+                      className="px-2 py-1 bg-white border border-slate-200 rounded text-left hover:border-blue-500 font-medium cursor-pointer"
+                    >
+                      💻 IT Dept
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setLoginEmail("admin"); setLoginPassword("QW!@12"); }}
+                      className="px-2 py-1 bg-white border border-slate-200 rounded text-left hover:border-blue-500 font-medium cursor-pointer"
+                    >
+                      🛡️ General Admin
+                    </button>
+                  </div>
+                </div>
 
                 <div className="space-y-1.5">
                   <label htmlFor="admin-id-input" className="block text-xs font-semibold text-slate-700 uppercase">Admin Username / ID</label>

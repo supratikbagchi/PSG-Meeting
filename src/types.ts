@@ -41,6 +41,19 @@ export interface Room {
   name: string;
   capacity: number;
   features: string[];
+  floor?: string | number;
+}
+
+export interface FeedbackItem {
+  feedbackId: string;
+  bookingId?: string;
+  roomName?: string;
+  userEmail: string;
+  userName: string;
+  amenitiesRating: number; // 1-5
+  appRating: number; // 1-5
+  comments: string;
+  createdAt: string;
 }
 
 export interface ExternalGuest {

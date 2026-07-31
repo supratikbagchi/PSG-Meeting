@@ -124,25 +124,29 @@ export async function seedFirestoreIfNeeded(): Promise<void> {
           roomId: "room-1",
           name: "Boardroom Alpha",
           capacity: 12,
-          features: ["Projector", "Video Conferencing", "Whiteboard", "AC"]
+          features: ["Projector", "Video Conferencing", "Whiteboard", "AC"],
+          floor: "Floor 1"
         },
         {
           roomId: "room-2",
           name: "Collaboration Hub",
           capacity: 8,
-          features: ["Smart TV", "Whiteboard", "Glass Wall"]
+          features: ["Smart TV", "Whiteboard", "Glass Wall"],
+          floor: "Floor 1"
         },
         {
           roomId: "room-3",
           name: "Focus Pod A",
           capacity: 4,
-          features: ["High-speed Wi-Fi", "Whiteboard"]
+          features: ["High-speed Wi-Fi", "Whiteboard"],
+          floor: "Floor 2"
         },
         {
           roomId: "room-4",
           name: "Executive Conference Room",
           capacity: 15,
-          features: ["4K TV", "Conference Phone", "Whiteboard", "Catering Desk"]
+          features: ["4K TV", "Conference Phone", "Whiteboard", "Catering Desk"],
+          floor: "Floor 3"
         }
       ];
 
@@ -160,6 +164,36 @@ export async function seedFirestoreIfNeeded(): Promise<void> {
         email: "admin@psgroup.in",
         passwordHash: adminHash,
         name: "PS Group Admin",
+        role: "Admin",
+        isApproved: true,
+        createdAt: "2026-07-05T10:02:28.336Z"
+      },
+      {
+        uid: "admin-reception",
+        email: "receptionist@psgroup.in",
+        passwordHash: adminHash,
+        name: "Receptionist Admin",
+        department: "Facility and Operations",
+        role: "Admin",
+        isApproved: true,
+        createdAt: "2026-07-05T10:02:28.336Z"
+      },
+      {
+        uid: "admin-hospitality",
+        email: "hospitality@psgroup.in",
+        passwordHash: adminHash,
+        name: "Hospitality Admin",
+        department: "Facility and Operations",
+        role: "Admin",
+        isApproved: true,
+        createdAt: "2026-07-05T10:02:28.336Z"
+      },
+      {
+        uid: "admin-it",
+        email: "it@psgroup.in",
+        passwordHash: adminHash,
+        name: "IT Dept Admin",
+        department: "Enterprise Technology & Automation",
         role: "Admin",
         isApproved: true,
         createdAt: "2026-07-05T10:02:28.336Z"
