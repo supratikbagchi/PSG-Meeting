@@ -22,12 +22,26 @@ import {
   Sparkles,
   MapPin,
   Tag,
-  X
+  X,
+  Filter,
+  SlidersHorizontal,
+  Check,
+  Building,
+  RotateCcw,
+  Send,
+  Info,
+  CalendarCheck,
+  History,
+  CalendarX,
+  DoorClosed,
+  Cpu,
+  CheckCircle2,
+  Coffee
 } from "lucide-react";
 import { apiService } from "./services/apiService";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./services/firebase";
-import { User, Room, Booking, NotificationLog, Recommendation, AdminActivityLog } from "./types";
+import { User, Room, Booking, NotificationLog, Recommendation, AdminActivityLog, DEPARTMENT_LIST, ExternalGuest } from "./types";
 
 // Helper to format Firestore/Firebase errors nicely for the UI
 function formatError(err: any): string {
@@ -130,8 +144,8 @@ export default function App() {
   // Availability Search Form
   const [searchDate, setSearchDate] = useState(() => {
     const d = new Date();
-    // If it is past 18:00 (6 PM) in the user's local timezone, default to tomorrow
-    if (d.getHours() >= 18) {
+    // If it is past 20:00 (8 PM) in the user's local timezone, default to tomorrow
+    if (d.getHours() >= 20) {
       d.setDate(d.getDate() + 1);
     }
     return d.toLocaleDateString("en-CA");
@@ -157,6 +171,39 @@ export default function App() {
   const [externalName, setExternalName] = useState("");
   const [externalCompany, setExternalCompany] = useState("");
   const [externalWhomToMeet, setExternalWhomToMeet] = useState("");
+  const [externalGuests, setExternalGuests] = useState<ExternalGuest[]>([
+    { name: "", company: "", email: "", phone: "", whomToMeet: "" }
+  ]);
+
+  const handleAddGuest = () => {
+    setExternalGuests(prev => [...prev, { name: "", company: "", email: "", phone: "", whomToMeet: "" }]);
+  };
+
+  const handleRemoveGuest = (index: number) => {
+    setExternalGuests(prev => {
+      if (prev.length <= 1) {
+        setExternalName("");
+        setExternalCompany("");
+        setExternalWhomToMeet("");
+        return [{ name: "", company: "", email: "", phone: "", whomToMeet: "" }];
+      }
+      const updated = prev.filter((_, i) => i !== index);
+      if (updated.length > 0 && index === 0) {
+        setExternalName(updated[0].name || "");
+        setExternalCompany(updated[0].company || "");
+        setExternalWhomToMeet(updated[0].whomToMeet || "");
+      }
+      return updated;
+    });
+  };
+
+  const handleGuestChange = (index: number, field: keyof ExternalGuest, value: string) => {
+    setExternalGuests(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
   const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
 
   // New Checkbox, Search, and IT Support Notification States
@@ -165,6 +212,30 @@ export default function App() {
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [reservationSearchQuery, setReservationSearchQuery] = useState("");
   const [reservationFilterCategory, setReservationFilterCategory] = useState<"All" | "IT" | "FB" | "External">("All");
+  const [reservationTimeTab, setReservationTimeTab] = useState<"upcoming" | "past_cancelled">("upcoming");
+
+  // Multi-Facet Filter Pop-up Modal States (Amazon/Flipkart Style)
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [filterDepartment, setFilterDepartment] = useState<string>("All");
+  const [filterITSupport, setFilterITSupport] = useState<"All" | "Yes" | "No">("All");
+  const [filterFB, setFilterFB] = useState<"All" | "Yes" | "No">("All");
+  const [filterMeetingType, setFilterMeetingType] = useState<"All" | "Internal" | "External">("All");
+  const [filterRoomId, setFilterRoomId] = useState<string>("All");
+  const [filterStatus, setFilterStatus] = useState<"All" | "Approved" | "Cancelled">("All");
+  const [filterStartDate, setFilterStartDate] = useState<string>("");
+  const [filterEndDate, setFilterEndDate] = useState<string>("");
+
+  // Temp states for Filter Pop-Up Modal
+  const [tempDepartment, setTempDepartment] = useState<string>("All");
+  const [tempITSupport, setTempITSupport] = useState<"All" | "Yes" | "No">("All");
+  const [tempFB, setTempFB] = useState<"All" | "Yes" | "No">("All");
+  const [tempMeetingType, setTempMeetingType] = useState<"All" | "Internal" | "External">("All");
+  const [tempRoomId, setTempRoomId] = useState<string>("All");
+  const [tempStatus, setTempStatus] = useState<"All" | "Approved" | "Cancelled">("All");
+  const [tempStartDate, setTempStartDate] = useState<string>("");
+  const [tempEndDate, setTempEndDate] = useState<string>("");
+  const [deptSearchInModal, setDeptSearchInModal] = useState<string>("");
+  const [activeModalFacet, setActiveModalFacet] = useState<"department" | "room" | "requirements" | "scope" | "status" | "date">("department");
 
   // Admin Manage Room Form
   const [showRoomModal, setShowRoomModal] = useState(false);
@@ -174,6 +245,11 @@ export default function App() {
   const [formRoomFeature, setFormRoomFeature] = useState("");
   const [formRoomFeaturesList, setFormRoomFeaturesList] = useState<string[]>([]);
   const [roomActionError, setRoomActionError] = useState<string | null>(null);
+
+  // Cancellation Modal States
+  const [bookingToCancel, setBookingToCancel] = useState<Booking | null>(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [cancelSuccessMsg, setCancelSuccessMsg] = useState<string | null>(null);
 
   // Triggering counts for badges
   const [pendingUserCount, setPendingUserCount] = useState(0);
@@ -244,8 +320,14 @@ export default function App() {
   const fetchBookingsData = useCallback(async () => {
     setBookingsLoading(true);
     try {
-      const bookingsData = await apiService.getBookings();
+      const [bookingsData, usersList] = await Promise.all([
+        apiService.getBookings(),
+        apiService.getAdminUsers().catch(() => [])
+      ]);
       setBookings(bookingsData);
+      if (usersList && usersList.length > 0) {
+        setAdminUsers(usersList);
+      }
       setPendingBookingCount(0);
     } catch (err: any) {
       setGlobalError(formatError(err));
@@ -455,12 +537,9 @@ export default function App() {
     }
 
     if (meetingType === "External") {
-      if (!externalName.trim()) {
-        setBookingError("Visitor Name is mandatory for External meetings.");
-        return;
-      }
-      if (!externalWhomToMeet.trim()) {
-        setBookingError("Whom to Meet is mandatory for External meetings.");
+      const validGuests = externalGuests.filter(g => g.name && g.name.trim() !== "");
+      if (validGuests.length === 0 && !externalName.trim()) {
+        setBookingError("At least one external guest name is required for External meetings.");
         return;
       }
     }
@@ -478,6 +557,10 @@ export default function App() {
     const clientDate = now.toLocaleDateString("en-CA");
     const clientTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 
+    const validExternalGuests = meetingType === "External" 
+      ? externalGuests.filter(g => g.name && g.name.trim() !== "")
+      : undefined;
+
     try {
       const result = await apiService.createBooking({
         roomId: selectedRoom.roomId,
@@ -486,11 +569,13 @@ export default function App() {
         duration: searchDuration,
         bookerName: bookerName.trim(),
         bookerEmail: bookerEmail.trim(),
+        department: currentUser?.department || "",
         reason: bookingReason.trim(),
         meetingType,
-        externalName: meetingType === "External" ? externalName.trim() : undefined,
-        externalCompany: meetingType === "External" ? externalCompany.trim() : undefined,
-        externalWhomToMeet: meetingType === "External" ? externalWhomToMeet.trim() : undefined,
+        externalGuests: validExternalGuests,
+        externalName: meetingType === "External" ? (validExternalGuests?.[0]?.name?.trim() || externalName.trim()) : undefined,
+        externalCompany: meetingType === "External" ? (validExternalGuests?.[0]?.company?.trim() || externalCompany.trim()) : undefined,
+        externalWhomToMeet: meetingType === "External" ? (validExternalGuests?.[0]?.whomToMeet?.trim() || externalWhomToMeet.trim() || bookerName.trim()) : undefined,
         attendeesCount: customAttendees,
         itSupportRequired,
         fbRequired,
@@ -499,24 +584,31 @@ export default function App() {
         outlookSynced: false,
       });
 
-      // Notify IT Helpdesk via server endpoint if IT Support is required
-      if (itSupportRequired) {
-        try {
-          await fetch(getApiUrl("/api/notify-it-helpdesk"), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              booking: result.booking,
-              roomName: selectedRoom.name
-            })
-          });
-          console.log("IT Helpdesk notification sent to ithelpdesk@psgroup.in");
-        } catch (itErr) {
-          console.warn("Server notification to IT Helpdesk failed, logged in DB instead:", itErr);
+      // Automatically dispatch IT team notification email via server endpoint
+      let emailDiagnostic = "";
+      try {
+        const itRes = await fetch(getApiUrl("/api/notify-it-helpdesk"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            booking: result.booking,
+            roomName: selectedRoom.name
+          })
+        });
+        if (itRes.ok) {
+          const itData = await itRes.json();
+          emailDiagnostic = itData.message;
         }
+      } catch (itErr) {
+        console.warn("Server email dispatch notification to IT Team failed, recorded in DB logs instead:", itErr);
       }
 
-      setBookingSuccess(result.message);
+      let successMsg = result.message;
+      if (emailDiagnostic) {
+        successMsg += ` [IT Email Status: ${emailDiagnostic}]`;
+      }
+
+      setBookingSuccess(successMsg);
       
       // Store locally for subsequent reservations convenience
       localStorage.setItem("ps_booker_name", bookerName.trim());
@@ -628,34 +720,73 @@ export default function App() {
     }
   };
 
-  // Helper to trigger direct email client to send details to IT Helpdesk
-  const handleEmailITHelpdesk = (booking: Booking, roomName: string) => {
-    const subject = encodeURIComponent(`[IT Support Required] ${roomName} on ${booking.date} at ${booking.startTime}`);
-    const bodyText = encodeURIComponent(
-      `Hello IT Helpdesk,\n\nIT Support has been requested for an upcoming meeting:\n\n` +
-      `• Date: ${booking.date}\n` +
-      `• Time: ${booking.startTime} (${booking.duration} minutes)\n` +
-      `• Room Name / Number: ${roomName}\n` +
-      `• Host Name: ${booking.bookerName || "N/A"}\n` +
-      `• Host Email: ${booking.bookerEmail || "N/A"}\n` +
-      `• Agenda: ${booking.reason || "N/A"}\n` +
-      `• Meeting Type: ${booking.meetingType || "Internal"}\n` +
-      (booking.externalName ? `• Visitor Name: ${booking.externalName} (${booking.externalCompany || "N/A"})\n` : "") +
-      `\nPlease ensure IT & AV support is arranged before the start time.\n\nThank you,\nPS Group Meeting Room Portal`
-    );
-    window.open(`mailto:ithelpdesk@psgroup.in?subject=${subject}&body=${bodyText}`, "_blank");
+  // Helper to trigger direct server email dispatch to IT Team (it@psgroup.in)
+  const handleEmailITHelpdesk = async (booking: Booking, roomName: string) => {
+    try {
+      const res = await fetch(getApiUrl("/api/notify-it-helpdesk"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ booking, roomName })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        alert(`Server Email Dispatched to IT Team (it@psgroup.in)!\n\nStatus: ${data.status.toUpperCase()}\nDetails: ${data.message}`);
+        fetchAdminData();
+      } else {
+        alert("Server email dispatch failed. Please check backend service status.");
+      }
+    } catch (err: any) {
+      alert("Error triggering server email dispatch: " + (err.message || String(err)));
+    }
+  };
+
+  const handleSendTestITEmail = async () => {
+    try {
+      setAdminLoading(true);
+      const res = await fetch(getApiUrl("/api/send-email"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: "it@psgroup.in",
+          subject: "[TEST DISPATCH] IT Helpdesk Notification Test",
+          body: "This is a diagnostic test email to verify SMTP mail server connectivity for IT Support dispatch.",
+          priority: "High",
+          bookingId: "test-booking"
+        })
+      });
+      const data = await res.json();
+      alert(`Outbound Email Dispatch Diagnostic:\n\nStatus: ${data.status.toUpperCase()}\nDetails: ${data.message}`);
+      fetchAdminData();
+    } catch (err: any) {
+      alert("Test email failed: " + err.message);
+    } finally {
+      setAdminLoading(false);
+    }
   };
 
   // Organizer Actions: Cancel Reservation
-  const handleCancelBooking = async (booking: Booking) => {
-    if (!confirm("Are you sure you want to cancel this booking?")) return;
+  const handleCancelBooking = (booking: Booking) => {
+    setBookingToCancel(booking);
+  };
+
+  const confirmCancelBooking = async () => {
+    if (!bookingToCancel) return;
+    setCancelLoading(true);
     try {
-      await apiService.cancelBooking(booking.bookingId);
-      alert("Your meeting room reservation was successfully cancelled.");
+      await apiService.cancelBooking(bookingToCancel.bookingId);
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.bookingId === bookingToCancel.bookingId ? { ...b, status: "Cancelled" } : b
+        )
+      );
+      setCancelSuccessMsg();
+      setBookingToCancel(null);
       fetchBookingsData();
       triggerAvailabilityCheck();
     } catch (err: any) {
-      alert("Failed to cancel booking: " + err.message);
+      setGlobalError("Failed to cancel reservation: " + (err.message || err));
+    } finally {
+      setCancelLoading(false);
     }
   };
 
@@ -773,7 +904,6 @@ export default function App() {
   };
 
   const handleDeleteRoom = async (roomId: string) => {
-    if (!confirm("Are you sure you want to delete this room and all associated bookings? This is permanent.")) return;
     try {
       await apiService.deleteRoom(roomId);
       fetchRoomsData();
@@ -1045,15 +1175,20 @@ export default function App() {
                   <label htmlFor="reg-department" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
                     Department <span className="text-red-500">*</span>
                   </label>
-                  <input
+                  <select
                     id="reg-department"
-                    type="text"
                     required
-                    placeholder="e.g. Sales, HR, Engineering"
                     value={regDepartment}
                     onChange={(e) => setRegDepartment(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
-                  />
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all cursor-pointer font-medium"
+                  >
+                    <option value="" disabled>-- Select Your Department --</option>
+                    {DEPARTMENT_LIST.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -1115,7 +1250,24 @@ export default function App() {
           <button
             id="clear-error-btn"
             onClick={() => setGlobalError(null)}
-            className="text-white/85 hover:text-white font-bold px-2"
+            className="text-white/85 hover:text-white font-bold px-2 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Banner indicating cancellation success if any */}
+      {cancelSuccessMsg && (
+        <div className="bg-emerald-600 text-white text-xs px-4 py-2 flex justify-between items-center z-50">
+          <div className="flex items-center space-x-2">
+            <Check className="h-4 w-4 shrink-0" />
+            <span className="font-semibold">{cancelSuccessMsg}</span>
+          </div>
+          <button
+            id="clear-cancel-msg-btn"
+            onClick={() => setCancelSuccessMsg(null)}
+            className="text-white/85 hover:text-white font-bold px-2 cursor-pointer"
           >
             ✕
           </button>
@@ -1264,11 +1416,21 @@ export default function App() {
               >
                 <Calendar className="w-3.5 h-3.5" />
                 <span>All Reservations</span>
-                {bookings.length > 0 && (
-                  <span className="bg-slate-900 text-blue-400 font-bold px-1.5 py-0.2 rounded-full text-[9px]">
-                    {bookings.length}
-                  </span>
-                )}
+                {(() => {
+                  const isAdminUser = currentUser?.role?.toLowerCase() === "admin" || currentUser?.role === "Admin";
+                  const count = bookings.filter((b) => {
+                    if (isAdminUser) return true;
+                    return (
+                      (currentUser?.uid && b.userId === currentUser.uid) ||
+                      (currentUser?.email && b.bookerEmail?.toLowerCase() === currentUser.email?.toLowerCase())
+                    );
+                  }).length;
+                  return count > 0 ? (
+                    <span className="bg-slate-900 text-blue-400 font-bold px-1.5 py-0.2 rounded-full text-[9px]">
+                      {count}
+                    </span>
+                  ) : null;
+                })()}
               </button>
 
               {currentUser?.role === "Admin" && (
@@ -1308,9 +1470,14 @@ export default function App() {
               {/* Sidebar filter query form */}
               <div className="lg:col-span-1 space-y-6">
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                  <div className="flex items-center space-x-2 mb-4 border-b border-slate-100 pb-3">
-                    <Sliders className="text-blue-600 h-5 w-5" />
-                    <h3 className="font-display font-semibold text-slate-900">Room Preferences</h3>
+                  <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+                    <div className="flex items-center space-x-2">
+                      <Sliders className="text-blue-600 h-5 w-5" />
+                      <h3 className="font-display font-semibold text-slate-900">Room Preferences</h3>
+                    </div>
+                    <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200">
+                      🕒 9 AM – 8 PM
+                    </span>
                   </div>
 
                   <form onSubmit={triggerAvailabilityCheck} className="space-y-4">
@@ -1461,10 +1628,13 @@ export default function App() {
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
                   <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
                     <div>
-                      <h3 className="font-display font-semibold text-slate-900 text-lg">Suggested Available Meeting Rooms</h3>
-                      <p className="text-xs text-slate-500">
-                        Date: <span className="font-semibold text-slate-700">{searchDate}</span> | Capacity ≥ <span className="font-semibold text-slate-700">{searchAttendees}</span> | Duration: <span className="font-semibold text-slate-700">{searchDuration}m</span>
-                      </p>
+                      <h3 className="font-display font-semibold text-slate-900 text-lg flex items-center gap-2">
+                        <span>Suggested Available Meeting Rooms</span>
+                        <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">
+                          Hours: 09:00 AM – 08:00 PM
+                        </span>
+                      </h3>
+
                     </div>
                     <button
                       id="refresh-availability-btn"
@@ -1717,57 +1887,130 @@ export default function App() {
                             <motion.div
                               initial={{ opacity: 0, y: -10 }}
                               animate={{ opacity: 1, y: 0 }}
-                              className="bg-slate-850/55 border border-slate-850 rounded-xl p-4 mb-5 space-y-4"
+                              className="bg-slate-850/60 border border-slate-800 rounded-xl p-4 mb-5 space-y-4"
                             >
-                              <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-2">
-                                External Visitor Details
-                              </h4>
-                              
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="flex flex-col space-y-1.5">
-                                  <label htmlFor="external-name" className="text-[11px] font-semibold text-slate-400">
-                                    VISITOR NAME <span className="text-red-500">*</span>
-                                  </label>
-                                  <input
-                                    id="external-name"
-                                    type="text"
-                                    required
-                                    placeholder="Enter visitor's full name"
-                                    value={externalName}
-                                    onChange={(e) => setExternalName(e.target.value)}
-                                    className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 transition-all"
-                                  />
+                              <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                                <div className="flex items-center space-x-2">
+                                  <Users className="h-4 w-4 text-blue-400" />
+                                  <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wider">
+                                    External Guest / Visitor Details
+                                  </h4>
                                 </div>
-
-                                <div className="flex flex-col space-y-1.5">
-                                  <label htmlFor="external-company" className="text-[11px] font-semibold text-slate-400">
-                                    COMPANY NAME <span className="text-slate-500">(Optional)</span>
-                                  </label>
-                                  <input
-                                    id="external-company"
-                                    type="text"
-                                    placeholder="Enter company name"
-                                    value={externalCompany}
-                                    onChange={(e) => setExternalCompany(e.target.value)}
-                                    className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 transition-all"
-                                  />
-                                </div>
+                                <span className="text-[11px] font-semibold text-blue-300 bg-blue-950/60 border border-blue-800/50 px-2.5 py-0.5 rounded-full">
+                                  {externalGuests.length} {externalGuests.length === 1 ? "Guest" : "Guests"}
+                                </span>
                               </div>
 
-                              <div className="flex flex-col space-y-1.5">
-                                <label htmlFor="external-whom" className="text-[11px] font-semibold text-slate-400">
-                                  WHOM TO MEET <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                  id="external-whom"
-                                  type="text"
-                                  required
-                                  placeholder="Name of the employee being met"
-                                  value={externalWhomToMeet}
-                                  onChange={(e) => setExternalWhomToMeet(e.target.value)}
-                                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 transition-all"
-                                />
-                              </div>
+                              {externalGuests.map((guest, idx) => (
+                                <div
+                                  key={idx}
+                                  className="bg-slate-900/80 border border-slate-800 rounded-lg p-3.5 space-y-3 transition-all hover:border-slate-700"
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                                      <span className="w-5 h-5 rounded-full bg-blue-600/30 text-blue-400 flex items-center justify-center text-[10px] font-mono">
+                                        {idx + 1}
+                                      </span>
+                                      <span>Guest #{idx + 1} {idx === 0 ? "(Primary Visitor)" : ""}</span>
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveGuest(idx)}
+                                      className="text-slate-500 hover:text-red-400 p-1 rounded transition-colors text-xs flex items-center gap-1 cursor-pointer"
+                                      title={externalGuests.length > 1 ? "Remove guest" : "Clear guest details"}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                      <span className="text-[10px]">{externalGuests.length > 1 ? "Remove" : "Clear"}</span>
+                                    </button>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div className="flex flex-col space-y-1">
+                                      <label className="text-[10px] font-semibold text-slate-400">
+                                        GUEST NAME <span className="text-red-500">*</span>
+                                      </label>
+                                      <input
+                                        type="text"
+                                        required
+                                        placeholder="e.g. John Doe"
+                                        value={guest.name}
+                                        onChange={(e) => {
+                                          handleGuestChange(idx, "name", e.target.value);
+                                          if (idx === 0) setExternalName(e.target.value);
+                                        }}
+                                        className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 transition-all"
+                                      />
+                                    </div>
+
+                                    <div className="flex flex-col space-y-1">
+                                      <label className="text-[10px] font-semibold text-slate-400">
+                                        COMPANY / ORGANIZATION
+                                      </label>
+                                      <input
+                                        type="text"
+                                        placeholder="e.g. ABC Corp"
+                                        value={guest.company || ""}
+                                        onChange={(e) => {
+                                          handleGuestChange(idx, "company", e.target.value);
+                                          if (idx === 0) setExternalCompany(e.target.value);
+                                        }}
+                                        className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 transition-all"
+                                      />
+                                    </div>
+
+                                    <div className="flex flex-col space-y-1">
+                                      <label className="text-[10px] font-semibold text-slate-400">
+                                        EMAIL ADDRESS <span className="text-slate-500">(Optional)</span>
+                                      </label>
+                                      <input
+                                        type="email"
+                                        placeholder="e.g. guest@company.com"
+                                        value={guest.email || ""}
+                                        onChange={(e) => handleGuestChange(idx, "email", e.target.value)}
+                                        className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 transition-all"
+                                      />
+                                    </div>
+
+                                    <div className="flex flex-col space-y-1">
+                                      <label className="text-[10px] font-semibold text-slate-400">
+                                        PHONE / CONTACT <span className="text-slate-500">(Optional)</span>
+                                      </label>
+                                      <input
+                                        type="tel"
+                                        placeholder="e.g. +91 9876543210"
+                                        value={guest.phone || ""}
+                                        onChange={(e) => handleGuestChange(idx, "phone", e.target.value)}
+                                        className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 transition-all"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="flex flex-col space-y-1">
+                                    <label className="text-[10px] font-semibold text-slate-400">
+                                      WHOM TO MEET AT PS GROUP <span className="text-slate-500">(Optional)</span>
+                                    </label>
+                                    <input
+                                      type="text"
+                                      placeholder={bookerName || "Employee Name"}
+                                      value={guest.whomToMeet || ""}
+                                      onChange={(e) => {
+                                        handleGuestChange(idx, "whomToMeet", e.target.value);
+                                        if (idx === 0) setExternalWhomToMeet(e.target.value);
+                                      }}
+                                      className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 transition-all"
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+
+                              <button
+                                type="button"
+                                onClick={handleAddGuest}
+                                className="w-full py-2 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-blue-500/50 rounded-lg text-xs font-semibold text-blue-400 hover:text-blue-300 transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
+                              >
+                                <Plus className="h-4 w-4" />
+                                <span>Add Another Guest / Visitor</span>
+                              </button>
                             </motion.div>
                           )}
 
@@ -1856,29 +2099,172 @@ export default function App() {
 
           {/* ==================== TAB 2: ALL RESERVATIONS ==================== */}
           {activeTab === "my-bookings" && (() => {
-            // Comprehensive multi-field search filter logic
-            const filteredBookings = bookings.filter((booking) => {
+            const isAdmin = currentUser?.role?.toLowerCase() === "admin" || currentUser?.role === "Admin";
+
+            // Helper to resolve department for any booking (from booking.department or host user profile)
+            const getBookingDepartment = (booking: Booking): string => {
+              if (booking.department && booking.department.trim() !== "" && booking.department !== "N/A") {
+                return booking.department;
+              }
+              if (booking.bookerEmail) {
+                const match = adminUsers.find(
+                  (u) => u.email?.toLowerCase() === booking.bookerEmail?.toLowerCase() || u.uid === booking.userId
+                );
+                if (match?.department) {
+                  return match.department;
+                }
+              }
+              return "N/A";
+            };
+
+            // 1. User Visibility Scope Filter: Admin sees all, Regular users see only their own bookings
+            const visibleBookings = bookings.filter((booking) => {
+              if (isAdmin) return true;
+              const matchUid = currentUser?.uid && booking.userId === currentUser.uid;
+              const matchEmail = currentUser?.email && booking.bookerEmail?.toLowerCase() === currentUser.email?.toLowerCase();
+              return matchUid || matchEmail;
+            });
+
+            // Helper to determine if a booking is past or cancelled
+            const now = new Date();
+            const todayISO = now.toLocaleDateString("en-CA"); // YYYY-MM-DD
+            const currentHM = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+
+            const isPastOrCancelled = (b: Booking): boolean => {
+              if (b.status === "Cancelled") return true;
+              if (!b.date) return false;
+              if (b.date < todayISO) return true;
+              if (b.date === todayISO) {
+                if (b.startTime && b.startTime < currentHM) {
+                  return true;
+                }
+              }
+              return false;
+            };
+
+            // 2. Separate into Upcoming vs Past & Cancelled
+            const upcomingBookings = visibleBookings.filter((b) => !isPastOrCancelled(b));
+            const pastCancelledBookings = visibleBookings.filter((b) => isPastOrCancelled(b));
+
+            const currentTabBookings = reservationTimeTab === "upcoming" ? upcomingBookings : pastCancelledBookings;
+
+            const openFilterModal = () => {
+              setTempDepartment(filterDepartment);
+              setTempITSupport(filterITSupport);
+              setTempFB(filterFB);
+              setTempMeetingType(filterMeetingType);
+              setTempRoomId(filterRoomId);
+              setTempStatus(filterStatus);
+              setTempStartDate(filterStartDate);
+              setTempEndDate(filterEndDate);
+              setDeptSearchInModal("");
+              setShowFilterModal(true);
+            };
+
+            const applyModalFilters = () => {
+              setFilterDepartment(tempDepartment);
+              setFilterITSupport(tempITSupport);
+              setFilterFB(tempFB);
+              setFilterMeetingType(tempMeetingType);
+              setFilterRoomId(tempRoomId);
+              setFilterStatus(tempStatus);
+              setFilterStartDate(tempStartDate);
+              setFilterEndDate(tempEndDate);
+              setShowFilterModal(false);
+            };
+
+            const resetAllActiveFilters = () => {
+              setFilterDepartment("All");
+              setFilterITSupport("All");
+              setFilterFB("All");
+              setFilterMeetingType("All");
+              setFilterRoomId("All");
+              setFilterStatus("All");
+              setFilterStartDate("");
+              setFilterEndDate("");
+              setReservationFilterCategory("All");
+              setReservationSearchQuery("");
+            };
+
+            const activeFilterCount = (() => {
+              let count = 0;
+              if (filterDepartment !== "All") count++;
+              if (filterITSupport !== "All") count++;
+              if (filterFB !== "All") count++;
+              if (filterMeetingType !== "All") count++;
+              if (filterRoomId !== "All") count++;
+              if (filterStatus !== "All") count++;
+              if (filterStartDate !== "" || filterEndDate !== "") count++;
+              if (reservationFilterCategory !== "All") count++;
+              return count;
+            })();
+
+            const tempActiveFilterCount = (() => {
+              let count = 0;
+              if (tempDepartment !== "All") count++;
+              if (tempITSupport !== "All") count++;
+              if (tempFB !== "All") count++;
+              if (tempMeetingType !== "All") count++;
+              if (tempRoomId !== "All") count++;
+              if (tempStatus !== "All") count++;
+              if (tempStartDate !== "" || tempEndDate !== "") count++;
+              return count;
+            })();
+
+            // Multi-facet filter logic applied on currentTabBookings
+            const filteredBookings = currentTabBookings.filter((booking) => {
               const room = rooms.find((r) => r.roomId === booking.roomId);
               const roomName = room ? room.name.toLowerCase() : "";
               const hostName = (booking.bookerName || "").toLowerCase();
               const hostEmail = (booking.bookerEmail || "").toLowerCase();
+              const deptName = getBookingDepartment(booking).toLowerCase();
               const reason = (booking.reason || "").toLowerCase();
               const externalName = (booking.externalName || "").toLowerCase();
               const externalCompany = (booking.externalCompany || "").toLowerCase();
               const externalWhomToMeet = (booking.externalWhomToMeet || "").toLowerCase();
+              const externalGuestsStr = (booking.externalGuests || [])
+                .map(g => `${g.name} ${g.company || ""} ${g.email || ""} ${g.phone || ""} ${g.whomToMeet || ""}`)
+                .join(" ")
+                .toLowerCase();
               const dateStr = (booking.date || "").toLowerCase();
               const startTimeStr = (booking.startTime || "").toLowerCase();
 
-              // Quick category pill filter
+              // Quick Category Pill Filter
               if (reservationFilterCategory === "IT" && !booking.itSupportRequired) return false;
               if (reservationFilterCategory === "FB" && !booking.fbRequired) return false;
               if (reservationFilterCategory === "External" && booking.meetingType !== "External") return false;
 
+              // Department Facet Filter
+              if (filterDepartment !== "All" && deptName !== filterDepartment.toLowerCase()) {
+                return false;
+              }
+
+              // IT Support Facet Filter
+              if (filterITSupport === "Yes" && !booking.itSupportRequired) return false;
+              if (filterITSupport === "No" && booking.itSupportRequired) return false;
+
+              // F&B Facet Filter
+              if (filterFB === "Yes" && !booking.fbRequired) return false;
+              if (filterFB === "No" && booking.fbRequired) return false;
+
+              // Meeting Type Facet Filter
+              if (filterMeetingType !== "All" && booking.meetingType !== filterMeetingType) return false;
+
+              // Room Location Facet Filter
+              if (filterRoomId !== "All" && booking.roomId !== filterRoomId) return false;
+
+              // Status Facet Filter
+              if (filterStatus !== "All" && booking.status !== filterStatus) return false;
+
+              // Date Range Facet Filter
+              if (filterStartDate && booking.date < filterStartDate) return false;
+              if (filterEndDate && booking.date > filterEndDate) return false;
+
+              // Multi-field text query
               if (!reservationSearchQuery.trim()) return true;
 
               const query = reservationSearchQuery.toLowerCase().trim();
 
-              // Special keywords for yes / no filters
               const isYes = query === "yes";
               const isNo = query === "no";
 
@@ -1895,10 +2281,12 @@ export default function App() {
               return (
                 hostName.includes(query) ||
                 hostEmail.includes(query) ||
+                deptName.includes(query) ||
                 reason.includes(query) ||
                 externalName.includes(query) ||
                 externalCompany.includes(query) ||
                 externalWhomToMeet.includes(query) ||
+                externalGuestsStr.includes(query) ||
                 dateStr.includes(query) ||
                 startTimeStr.includes(query) ||
                 roomName.includes(query) ||
@@ -1907,6 +2295,21 @@ export default function App() {
                 matchesNoIT ||
                 matchesNoFB
               );
+            });
+
+            // Sort by meeting date & start time (most recent / upcoming date popped first)
+            filteredBookings.sort((a, b) => {
+              if (reservationTimeTab === "upcoming") {
+                // Soonest upcoming meeting date & start time first
+                const dateCmp = (a.date || "").localeCompare(b.date || "");
+                if (dateCmp !== 0) return dateCmp;
+                return (a.startTime || "").localeCompare(b.startTime || "");
+              } else {
+                // Most recently occurred / cancelled date first
+                const dateCmp = (b.date || "").localeCompare(a.date || "");
+                if (dateCmp !== 0) return dateCmp;
+                return (b.startTime || "").localeCompare(a.startTime || "");
+              }
             });
 
             return (
@@ -1919,23 +2322,105 @@ export default function App() {
                 className="space-y-6"
               >
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-100 pb-4">
-                    <div>
-                      <h3 className="font-display font-semibold text-slate-900 text-lg">All Active Reservations</h3>
-                      <p className="text-xs text-slate-500">View and search all locked slots by host, guests, agenda, date/time, F&B and IT support details.</p>
+                  {/* Top Header Section */}
+                  <div className="flex flex-col gap-4 mb-6 border-b border-slate-100 pb-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <h3 className="font-display font-semibold text-slate-900 text-lg flex items-center gap-2">
+                          <span>{isAdmin ? "All System Reservations (Admin)" : "My Bookings & Reservations"}</span>
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                            {visibleBookings.length} Total
+                          </span>
+                        </h3>
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        {/* Flipkart / Amazon Style Filter Button */}
+                        <button
+                          id="open-filter-modal-btn"
+                          onClick={openFilterModal}
+                          className="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-900 border border-blue-200 rounded-xl transition-all cursor-pointer flex items-center space-x-2 text-xs font-bold shadow-sm"
+                          title="Open Advanced Multi-Facet Filter Pop-up"
+                        >
+                          <SlidersHorizontal className="h-4 w-4 text-blue-600" />
+                          <span>Filter &amp; Refine</span>
+                          {activeFilterCount > 0 && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-black bg-blue-600 text-white rounded-full ml-1">
+                              {activeFilterCount}
+                            </span>
+                          )}
+                        </button>
+
+                        <button
+                          id="refresh-my-bookings-btn"
+                          onClick={() => fetchBookingsData()}
+                          className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl border border-slate-200 transition-all cursor-pointer flex items-center space-x-1.5 text-xs font-semibold"
+                          title="Refresh Reservations"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                          <span className="hidden sm:inline">Refresh</span>
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      id="refresh-my-bookings-btn"
-                      onClick={() => fetchBookingsData()}
-                      className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl border border-slate-200 transition-all cursor-pointer flex items-center space-x-1.5 text-xs font-semibold self-start sm:self-auto"
-                      title="Refresh Reservations"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                      <span>Refresh</span>
-                    </button>
+
+                    {/* Sub-Tabs: Upcoming Meetings vs Past & Cancelled Meetings */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                      <div className="inline-flex p-1 bg-slate-100/90 rounded-xl border border-slate-200">
+                        <button
+                          id="tab-upcoming-meetings-btn"
+                          type="button"
+                          onClick={() => setReservationTimeTab("upcoming")}
+                          className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-2 ${
+                            reservationTimeTab === "upcoming"
+                              ? "bg-white text-blue-700 shadow-sm border border-slate-200"
+                              : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+                          }`}
+                        >
+                          <CalendarCheck className="h-4 w-4 text-blue-600" />
+                          <span>Upcoming Meetings</span>
+                          <span className={`px-2 py-0.5 text-[10px] rounded-full font-extrabold ${
+                            reservationTimeTab === "upcoming"
+                              ? "bg-blue-100 text-blue-800"
+                              : "bg-slate-200 text-slate-700"
+                          }`}>
+                            {upcomingBookings.length}
+                          </span>
+                        </button>
+
+                        <button
+                          id="tab-past-cancelled-btn"
+                          type="button"
+                          onClick={() => setReservationTimeTab("past_cancelled")}
+                          className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-2 ${
+                            reservationTimeTab === "past_cancelled"
+                              ? "bg-white text-slate-900 shadow-sm border border-slate-200"
+                              : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+                          }`}
+                        >
+                          <History className="h-4 w-4 text-slate-500" />
+                          <span>Past &amp; Cancelled Meetings</span>
+                          <span className={`px-2 py-0.5 text-[10px] rounded-full font-extrabold ${
+                            reservationTimeTab === "past_cancelled"
+                              ? "bg-slate-800 text-white"
+                              : "bg-slate-200 text-slate-700"
+                          }`}>
+                            {pastCancelledBookings.length}
+                          </span>
+                        </button>
+                      </div>
+
+                      <div className="text-xs text-slate-400 font-medium flex items-center space-x-1">
+                        <Clock className="h-3.5 w-3.5 text-slate-400" />
+                        <span>
+                          {reservationTimeTab === "upcoming"
+                            ? "Sorted by Meeting Date (Nearest Upcoming First)"
+                            : "Sorted by Meeting Date (Most Recent Past First)"}
+                        </span>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Search Bar & Filter Controls */}
+                  {/* Search Bar & Category Controls */}
                   <div className="mb-6 space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200/80">
                     <div className="relative flex items-center">
                       <Search className="absolute left-3.5 h-4 w-4 text-slate-400 pointer-events-none" />
@@ -1944,7 +2429,7 @@ export default function App() {
                         type="text"
                         value={reservationSearchQuery}
                         onChange={(e) => setReservationSearchQuery(e.target.value)}
-                        placeholder="Search by host name, host email, guest name, agenda, date/time, F&B (yes/no), IT support (yes/no)..."
+                        placeholder="Search by host name, email, department, guest name, agenda, date/time..."
                         className="w-full pl-10 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm"
                       />
                       {reservationSearchQuery && (
@@ -1960,7 +2445,7 @@ export default function App() {
                     {/* Quick Filter Badges */}
                     <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-xs font-semibold text-slate-400 mr-1">Filter:</span>
+                        <span className="text-xs font-semibold text-slate-400 mr-1">Quick Filters:</span>
                         <button
                           onClick={() => setReservationFilterCategory("All")}
                           className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
@@ -1969,7 +2454,7 @@ export default function App() {
                               : "bg-white text-slate-600 hover:bg-slate-200 border border-slate-200"
                           }`}
                         >
-                          All Bookings
+                          All Items
                         </button>
                         <button
                           onClick={() => setReservationFilterCategory("IT")}
@@ -1979,7 +2464,7 @@ export default function App() {
                               : "bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200"
                           }`}
                         >
-                          <span>🔌 IT Support Required</span>
+                          <span>🔌 IT Support</span>
                         </button>
                         <button
                           onClick={() => setReservationFilterCategory("FB")}
@@ -2004,9 +2489,80 @@ export default function App() {
                       </div>
 
                       <div className="text-xs text-slate-500 font-medium">
-                        Showing <strong className="text-slate-800">{filteredBookings.length}</strong> of {bookings.length} reservations
+                        Showing <strong className="text-slate-800">{filteredBookings.length}</strong> of {currentTabBookings.length} {reservationTimeTab === "upcoming" ? "upcoming" : "past/cancelled"} reservations
                       </div>
                     </div>
+
+                    {/* Active Applied Filter Chips */}
+                    {activeFilterCount > 0 && (
+                      <div className="pt-2 border-t border-slate-200/60 flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Active Filters:</span>
+                        {filterDepartment !== "All" && (
+                          <span className="inline-flex items-center space-x-1 px-2.5 py-1 bg-blue-100 text-blue-900 rounded-lg text-xs font-bold border border-blue-200">
+                            <span>🏢 Dept: {filterDepartment}</span>
+                            <button onClick={() => setFilterDepartment("All")} className="hover:text-blue-600 p-0.5 cursor-pointer">
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        )}
+                        {filterITSupport !== "All" && (
+                          <span className="inline-flex items-center space-x-1 px-2.5 py-1 bg-purple-100 text-purple-900 rounded-lg text-xs font-bold border border-purple-200">
+                            <span>🔌 IT Support: {filterITSupport}</span>
+                            <button onClick={() => setFilterITSupport("All")} className="hover:text-purple-600 p-0.5 cursor-pointer">
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        )}
+                        {filterFB !== "All" && (
+                          <span className="inline-flex items-center space-x-1 px-2.5 py-1 bg-rose-100 text-rose-900 rounded-lg text-xs font-bold border border-rose-200">
+                            <span>☕ F&B: {filterFB}</span>
+                            <button onClick={() => setFilterFB("All")} className="hover:text-rose-600 p-0.5 cursor-pointer">
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        )}
+                        {filterMeetingType !== "All" && (
+                          <span className="inline-flex items-center space-x-1 px-2.5 py-1 bg-amber-100 text-amber-900 rounded-lg text-xs font-bold border border-amber-200">
+                            <span>👥 Scope: {filterMeetingType}</span>
+                            <button onClick={() => setFilterMeetingType("All")} className="hover:text-amber-600 p-0.5 cursor-pointer">
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        )}
+                        {filterRoomId !== "All" && (
+                          <span className="inline-flex items-center space-x-1 px-2.5 py-1 bg-emerald-100 text-emerald-900 rounded-lg text-xs font-bold border border-emerald-200">
+                            <span>🚪 Room: {rooms.find(r => r.roomId === filterRoomId)?.name || filterRoomId}</span>
+                            <button onClick={() => setFilterRoomId("All")} className="hover:text-emerald-600 p-0.5 cursor-pointer">
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        )}
+                        {filterStatus !== "All" && (
+                          <span className="inline-flex items-center space-x-1 px-2.5 py-1 bg-slate-200 text-slate-800 rounded-lg text-xs font-bold border border-slate-300">
+                            <span>📌 Status: {filterStatus}</span>
+                            <button onClick={() => setFilterStatus("All")} className="hover:text-slate-600 p-0.5 cursor-pointer">
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        )}
+                        {(filterStartDate || filterEndDate) && (
+                          <span className="inline-flex items-center space-x-1 px-2.5 py-1 bg-indigo-100 text-indigo-900 rounded-lg text-xs font-bold border border-indigo-200">
+                            <span>📅 Range: {filterStartDate || "Start"} → {filterEndDate || "End"}</span>
+                            <button onClick={() => { setFilterStartDate(""); setFilterEndDate(""); }} className="hover:text-indigo-600 p-0.5 cursor-pointer">
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        )}
+
+                        <button
+                          onClick={resetAllActiveFilters}
+                          className="text-xs font-bold text-red-600 hover:text-red-800 hover:underline ml-auto flex items-center space-x-1 cursor-pointer"
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          <span>Clear All Filters</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {bookingsLoading ? (
@@ -2014,32 +2570,46 @@ export default function App() {
                       <RefreshCw className="h-8 w-8 text-slate-400 animate-spin mb-3" />
                       <p className="text-sm text-slate-500">Loading schedules...</p>
                     </div>
-                  ) : bookings.length === 0 ? (
-                    <div className="py-16 text-center border-2 border-dashed border-slate-200 rounded-xl">
-                      <Calendar className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-                      <p className="text-slate-600 font-semibold">No Reservations Found</p>
-                      <p className="text-xs text-slate-400 mt-1 mb-4">No rooms have been reserved yet on the portal.</p>
-                      <button
-                        id="book-first-room-btn"
-                        onClick={() => setActiveTab("book")}
-                        className="inline-flex items-center px-4 py-2 bg-slate-950 text-white hover:bg-slate-850 font-bold text-xs rounded-lg shadow cursor-pointer"
-                      >
-                        Search Rooms Now
-                      </button>
+                  ) : currentTabBookings.length === 0 ? (
+                    <div className="py-16 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/40">
+                      {reservationTimeTab === "upcoming" ? (
+                        <CalendarCheck className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                      ) : (
+                        <History className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                      )}
+                      <p className="text-slate-700 font-semibold text-sm">
+                        {reservationTimeTab === "upcoming"
+                          ? "No Upcoming Meetings"
+                          : "No Past or Cancelled Meetings"}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-1 mb-4 max-w-md mx-auto">
+                        {reservationTimeTab === "upcoming"
+                          ? isAdmin
+                            ? "There are currently no upcoming room reservations scheduled across the system."
+                            : "You do not have any upcoming room reservations booked."
+                          : "There are no past or cancelled meeting records."}
+                      </p>
+                      {reservationTimeTab === "upcoming" && (
+                        <button
+                          id="book-first-room-btn"
+                          onClick={() => setActiveTab("book")}
+                          className="inline-flex items-center px-4 py-2 bg-slate-950 text-white hover:bg-slate-850 font-bold text-xs rounded-lg shadow cursor-pointer"
+                        >
+                          Book a Room Now
+                        </button>
+                      )}
                     </div>
                   ) : filteredBookings.length === 0 ? (
                     <div className="py-12 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
                       <Search className="h-10 w-10 text-slate-300 mx-auto mb-2" />
-                      <p className="text-slate-700 font-semibold text-sm">No reservations match your search query</p>
-                      <p className="text-xs text-slate-400 mt-1 mb-3">Try clearing filters or searching for host name, date, or agenda keyword.</p>
+                      <p className="text-slate-700 font-semibold text-sm">No reservations match your filter criteria</p>
+                      <p className="text-xs text-slate-400 mt-1 mb-3">Try clearing filters or selecting a different criteria.</p>
                       <button
-                        onClick={() => {
-                          setReservationSearchQuery("");
-                          setReservationFilterCategory("All");
-                        }}
-                        className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition-all cursor-pointer"
+                        onClick={resetAllActiveFilters}
+                        className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition-all cursor-pointer inline-flex items-center space-x-1"
                       >
-                        Clear Search Filters
+                        <RotateCcw className="h-3 w-3" />
+                        <span>Clear All Active Filters</span>
                       </button>
                     </div>
                   ) : (
@@ -2048,7 +2618,7 @@ export default function App() {
                         <thead className="bg-slate-50">
                           <tr>
                             <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Room Name</th>
-                            <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Booked By (Host)</th>
+                            <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Booked By (Host &amp; Dept)</th>
                             <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Agenda &amp; Requirements</th>
                             <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Date</th>
                             <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Start Time</th>
@@ -2061,6 +2631,8 @@ export default function App() {
                           {filteredBookings.map((booking) => {
                             const room = rooms.find((r) => r.roomId === booking.roomId);
                             const roomName = room ? room.name : "Meeting Room";
+                            const bookingDept = getBookingDepartment(booking);
+
                             return (
                               <tr key={booking.bookingId} className="hover:bg-slate-50/50">
                                 <td className="px-6 py-4 whitespace-nowrap">
@@ -2068,8 +2640,14 @@ export default function App() {
                                   <div className="text-xs text-slate-400">ID: {booking.bookingId.substring(0, 10)}...</div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="font-medium text-slate-800">{booking.bookerName || "Guest User"}</div>
-                                  <div className="text-xs text-slate-400 font-mono">{booking.bookerEmail || "N/A"}</div>
+                                  <div className="font-semibold text-slate-900">{booking.bookerName || "Guest User"}</div>
+                                  <div className="text-xs text-slate-500 font-mono">{booking.bookerEmail || "N/A"}</div>
+                                  <div className="mt-1">
+                                    <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                                      <Building className="h-2.5 w-2.5 text-blue-600" />
+                                      <span>{bookingDept}</span>
+                                    </span>
+                                  </div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap max-w-xs text-slate-700 font-medium">
                                   <div className="truncate font-semibold text-slate-850" title={booking.reason}>
@@ -2118,7 +2696,7 @@ export default function App() {
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   <div className="flex flex-wrap items-center gap-1.5">
-                                    {booking.status !== "Cancelled" && (currentUser?.role === "Admin" || currentUser?.email === booking.bookerEmail) ? (
+                                    {booking.status !== "Cancelled" ? (
                                       <button
                                         id={`cancel-btn-${booking.bookingId}`}
                                         onClick={() => handleCancelBooking(booking)}
@@ -2144,10 +2722,10 @@ export default function App() {
                                             id={`it-mail-btn-${booking.bookingId}`}
                                             onClick={() => handleEmailITHelpdesk(booking, roomName)}
                                             className="px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 border border-purple-200 rounded text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 shrink-0"
-                                            title="Email meeting details directly to ithelpdesk@psgroup.in"
+                                            title="Trigger automated server email dispatch to it@psgroup.in"
                                           >
                                             <Mail className="h-3 w-3 text-purple-600" />
-                                            <span>Mail IT Helpdesk</span>
+                                            <span>Send Email to IT</span>
                                           </button>
                                         )}
                                       </>
@@ -2164,6 +2742,647 @@ export default function App() {
                     </div>
                   )}
                 </div>
+
+                {/* ==================== MULTI-FACET FILTER POPUP MODAL ==================== */}
+                <AnimatePresence>
+                  {showFilterModal && (
+                    <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-3 sm:p-6 bg-slate-900/65 backdrop-blur-sm">
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                        transition={{ duration: 0.18 }}
+                        className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col h-[85vh] max-h-[720px]"
+                      >
+                        {/* Modal Header */}
+                        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
+                          <div className="flex items-center space-x-3">
+                            <div className="p-2.5 bg-blue-600 rounded-xl text-white shadow-md shadow-blue-500/20">
+                              <SlidersHorizontal className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <h3 className="font-display font-semibold text-base flex items-center gap-2">
+                                <span>Filter &amp; Refine Reservations</span>
+                                {tempActiveFilterCount > 0 && (
+                                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-blue-500 text-white shadow-sm">
+                                    {tempActiveFilterCount} Active
+                                  </span>
+                                )}
+                              </h3>
+                              <p className="text-xs text-slate-400">Select categories on the left to filter room reservations.</p>
+                            </div>
+                          </div>
+                          <button
+                            id="close-filter-modal-btn"
+                            type="button"
+                            onClick={() => setShowFilterModal(false)}
+                            className="text-slate-400 hover:text-white p-2 hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
+                          >
+                            <X className="h-5 w-5" />
+                          </button>
+                        </div>
+
+                        {/* Removable Active Filter Chips Bar */}
+                        {tempActiveFilterCount > 0 && (
+                          <div className="px-6 py-2.5 bg-blue-50/70 border-b border-blue-100 flex items-center flex-wrap gap-2 text-xs shrink-0">
+                            <span className="text-[11px] font-bold text-blue-900 uppercase tracking-wider mr-1">Active Filters:</span>
+                            {tempDepartment !== "All" && (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-blue-600 text-white font-semibold text-[11px] gap-1 shadow-xs">
+                                🏢 {tempDepartment}
+                                <button type="button" onClick={() => setTempDepartment("All")} className="hover:text-blue-200 cursor-pointer ml-1">
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </span>
+                            )}
+                            {tempRoomId !== "All" && (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-blue-600 text-white font-semibold text-[11px] gap-1 shadow-xs">
+                                🚪 Room: {rooms.find(r => r.roomId === tempRoomId)?.name || tempRoomId}
+                                <button type="button" onClick={() => setTempRoomId("All")} className="hover:text-blue-200 cursor-pointer ml-1">
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </span>
+                            )}
+                            {tempITSupport !== "All" && (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-purple-600 text-white font-semibold text-[11px] gap-1 shadow-xs">
+                                🔌 IT Support: {tempITSupport}
+                                <button type="button" onClick={() => setTempITSupport("All")} className="hover:text-purple-200 cursor-pointer ml-1">
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </span>
+                            )}
+                            {tempFB !== "All" && (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-rose-600 text-white font-semibold text-[11px] gap-1 shadow-xs">
+                                ☕ F&amp;B: {tempFB}
+                                <button type="button" onClick={() => setTempFB("All")} className="hover:text-rose-200 cursor-pointer ml-1">
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </span>
+                            )}
+                            {tempMeetingType !== "All" && (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-amber-600 text-white font-semibold text-[11px] gap-1 shadow-xs">
+                                👥 Scope: {tempMeetingType}
+                                <button type="button" onClick={() => setTempMeetingType("All")} className="hover:text-amber-200 cursor-pointer ml-1">
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </span>
+                            )}
+                            {tempStatus !== "All" && (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-800 text-white font-semibold text-[11px] gap-1 shadow-xs">
+                                📌 Status: {tempStatus}
+                                <button type="button" onClick={() => setTempStatus("All")} className="hover:text-slate-300 cursor-pointer ml-1">
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </span>
+                            )}
+                            {(tempStartDate !== "" || tempEndDate !== "") && (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-semibold text-[11px] gap-1 shadow-xs">
+                                📅 Range: {tempStartDate || "Start"} → {tempEndDate || "End"}
+                                <button type="button" onClick={() => { setTempStartDate(""); setTempEndDate(""); }} className="hover:text-emerald-200 cursor-pointer ml-1">
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </span>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTempDepartment("All");
+                                setTempITSupport("All");
+                                setTempFB("All");
+                                setTempMeetingType("All");
+                                setTempRoomId("All");
+                                setTempStatus("All");
+                                setTempStartDate("");
+                                setTempEndDate("");
+                              }}
+                              className="text-[11px] font-extrabold text-blue-700 hover:underline cursor-pointer ml-auto"
+                            >
+                              Clear All
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Modal Body: Flipkart / Amazon 2-Pane Split View */}
+                        <div className="flex-1 flex overflow-hidden">
+                          {/* LEFT SIDEBAR: Category Facet Navigation */}
+                          <div className="w-52 sm:w-64 bg-slate-50 border-r border-slate-200 flex flex-col shrink-0 overflow-y-auto">
+                            <div className="p-3 text-[11px] font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-200/80">
+                              Filter Categories
+                            </div>
+                            <nav className="p-2 space-y-1">
+                              {/* 1. Department Facet */}
+                              <button
+                                type="button"
+                                onClick={() => setActiveModalFacet("department")}
+                                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                                  activeModalFacet === "department"
+                                    ? "bg-white text-blue-700 shadow-sm border border-slate-200 font-bold"
+                                    : "text-slate-700 hover:bg-slate-200/70"
+                                }`}
+                              >
+                                <span className="flex items-center space-x-2">
+                                  <Building className={`h-4 w-4 ${activeModalFacet === "department" ? "text-blue-600" : "text-slate-400"}`} />
+                                  <span>Department</span>
+                                </span>
+                                {tempDepartment !== "All" && (
+                                  <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                                )}
+                              </button>
+
+                              {/* 2. Room Facet */}
+                              <button
+                                type="button"
+                                onClick={() => setActiveModalFacet("room")}
+                                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                                  activeModalFacet === "room"
+                                    ? "bg-white text-blue-700 shadow-sm border border-slate-200 font-bold"
+                                    : "text-slate-700 hover:bg-slate-200/70"
+                                }`}
+                              >
+                                <span className="flex items-center space-x-2">
+                                  <DoorClosed className={`h-4 w-4 ${activeModalFacet === "room" ? "text-blue-600" : "text-slate-400"}`} />
+                                  <span>Meeting Room</span>
+                                </span>
+                                {tempRoomId !== "All" && (
+                                  <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                                )}
+                              </button>
+
+                              {/* 3. Requirements Facet */}
+                              <button
+                                type="button"
+                                onClick={() => setActiveModalFacet("requirements")}
+                                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                                  activeModalFacet === "requirements"
+                                    ? "bg-white text-blue-700 shadow-sm border border-slate-200 font-bold"
+                                    : "text-slate-700 hover:bg-slate-200/70"
+                                }`}
+                              >
+                                <span className="flex items-center space-x-2">
+                                  <Cpu className={`h-4 w-4 ${activeModalFacet === "requirements" ? "text-blue-600" : "text-slate-400"}`} />
+                                  <span>IT &amp; F&amp;B Services</span>
+                                </span>
+                                {(tempITSupport !== "All" || tempFB !== "All") && (
+                                  <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                                )}
+                              </button>
+
+                              {/* 4. Scope Facet */}
+                              <button
+                                type="button"
+                                onClick={() => setActiveModalFacet("scope")}
+                                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                                  activeModalFacet === "scope"
+                                    ? "bg-white text-blue-700 shadow-sm border border-slate-200 font-bold"
+                                    : "text-slate-700 hover:bg-slate-200/70"
+                                }`}
+                              >
+                                <span className="flex items-center space-x-2">
+                                  <Users className={`h-4 w-4 ${activeModalFacet === "scope" ? "text-blue-600" : "text-slate-400"}`} />
+                                  <span>Meeting Scope</span>
+                                </span>
+                                {tempMeetingType !== "All" && (
+                                  <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                                )}
+                              </button>
+
+                              {/* 5. Status Facet */}
+                              <button
+                                type="button"
+                                onClick={() => setActiveModalFacet("status")}
+                                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                                  activeModalFacet === "status"
+                                    ? "bg-white text-blue-700 shadow-sm border border-slate-200 font-bold"
+                                    : "text-slate-700 hover:bg-slate-200/70"
+                                }`}
+                              >
+                                <span className="flex items-center space-x-2">
+                                  <CheckCircle2 className={`h-4 w-4 ${activeModalFacet === "status" ? "text-blue-600" : "text-slate-400"}`} />
+                                  <span>Booking Status</span>
+                                </span>
+                                {tempStatus !== "All" && (
+                                  <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                                )}
+                              </button>
+
+                              {/* 6. Date Facet */}
+                              <button
+                                type="button"
+                                onClick={() => setActiveModalFacet("date")}
+                                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                                  activeModalFacet === "date"
+                                    ? "bg-white text-blue-700 shadow-sm border border-slate-200 font-bold"
+                                    : "text-slate-700 hover:bg-slate-200/70"
+                                }`}
+                              >
+                                <span className="flex items-center space-x-2">
+                                  <Calendar className={`h-4 w-4 ${activeModalFacet === "date" ? "text-blue-600" : "text-slate-400"}`} />
+                                  <span>Date Range</span>
+                                </span>
+                                {(tempStartDate !== "" || tempEndDate !== "") && (
+                                  <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                                )}
+                              </button>
+                            </nav>
+                          </div>
+
+                          {/* RIGHT CONTENT PANEL: Active Facet Options */}
+                          <div className="flex-1 p-6 overflow-y-auto bg-white">
+                            {/* DEPARTMENT FACET PANEL */}
+                            {activeModalFacet === "department" && (
+                              <div className="space-y-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                                  <div>
+                                    <h4 className="font-bold text-sm text-slate-900">Filter by Department</h4>
+                                    <p className="text-xs text-slate-500">Select host department responsible for the reservation slot.</p>
+                                  </div>
+
+                                  <div className="relative w-full sm:w-64">
+                                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                                    <input
+                                      type="text"
+                                      placeholder="Search department..."
+                                      value={deptSearchInModal}
+                                      onChange={(e) => setDeptSearchInModal(e.target.value)}
+                                      className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 max-h-[380px] overflow-y-auto pr-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setTempDepartment("All")}
+                                    className={`p-3 rounded-xl text-xs text-left transition-all cursor-pointer flex items-center justify-between border ${
+                                      tempDepartment === "All"
+                                        ? "bg-slate-900 text-white border-slate-900 font-bold shadow-sm"
+                                        : "bg-white text-slate-800 border-slate-200 hover:bg-slate-50"
+                                    }`}
+                                  >
+                                    <span>All Departments</span>
+                                    {tempDepartment === "All" && <Check className="h-4 w-4 text-blue-400" />}
+                                  </button>
+
+                                  {DEPARTMENT_LIST.filter(d => d.toLowerCase().includes(deptSearchInModal.toLowerCase().trim())).map((dept) => {
+                                    const isSelected = tempDepartment === dept;
+                                    return (
+                                      <button
+                                        key={dept}
+                                        type="button"
+                                        onClick={() => setTempDepartment(dept)}
+                                        className={`p-3 rounded-xl text-xs text-left transition-all cursor-pointer flex items-center justify-between border ${
+                                          isSelected
+                                            ? "bg-blue-50 text-blue-900 border-blue-500 font-bold shadow-xs"
+                                            : "bg-white text-slate-800 border-slate-200 hover:bg-slate-50"
+                                        }`}
+                                      >
+                                        <span>{dept}</span>
+                                        {isSelected && <Check className="h-4 w-4 text-blue-600" />}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* ROOM FACET PANEL */}
+                            {activeModalFacet === "room" && (
+                              <div className="space-y-4">
+                                <div className="border-b border-slate-100 pb-3">
+                                  <h4 className="font-bold text-sm text-slate-900">Filter by Meeting Room</h4>
+                                  <p className="text-xs text-slate-500">Filter reservation entries booked inside a specific facility room.</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[380px] overflow-y-auto pr-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setTempRoomId("All")}
+                                    className={`p-3.5 rounded-xl text-xs text-left transition-all cursor-pointer border flex items-center justify-between ${
+                                      tempRoomId === "All"
+                                        ? "bg-slate-900 text-white border-slate-900 font-bold shadow-sm"
+                                        : "bg-white text-slate-800 border-slate-200 hover:bg-slate-50"
+                                    }`}
+                                  >
+                                    <div>
+                                      <div className="font-bold">All Meeting Rooms</div>
+                                      <div className="text-[11px] opacity-70">Show slots across all facilities</div>
+                                    </div>
+                                    {tempRoomId === "All" && <Check className="h-4 w-4 text-blue-400" />}
+                                  </button>
+
+                                  {rooms.map((room) => {
+                                    const isSelected = tempRoomId === room.roomId;
+                                    return (
+                                      <button
+                                        key={room.roomId}
+                                        type="button"
+                                        onClick={() => setTempRoomId(room.roomId)}
+                                        className={`p-3.5 rounded-xl text-xs text-left transition-all cursor-pointer border flex items-center justify-between ${
+                                          isSelected
+                                            ? "bg-blue-50 text-blue-950 border-blue-500 font-bold shadow-xs"
+                                            : "bg-white text-slate-800 border-slate-200 hover:bg-slate-50"
+                                        }`}
+                                      >
+                                        <div>
+                                          <div className="font-bold flex items-center gap-1.5">
+                                            <span>{room.name}</span>
+                                            <span className="text-[10px] font-normal px-1.5 py-0.2 rounded bg-slate-100 text-slate-600">
+                                              Cap: {room.capacity}
+                                            </span>
+                                          </div>
+                                          <div className="text-[11px] text-slate-500 mt-0.5">Floor: {room.floor}</div>
+                                        </div>
+                                        {isSelected && <Check className="h-4 w-4 text-blue-600" />}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* IT & F&B REQUIREMENTS FACET PANEL */}
+                            {activeModalFacet === "requirements" && (
+                              <div className="space-y-6">
+                                <div className="border-b border-slate-100 pb-3">
+                                  <h4 className="font-bold text-sm text-slate-900">IT &amp; Food / Beverage Services</h4>
+                                  <p className="text-xs text-slate-500">Refine by tech assistance or catering requests attached to the reservation.</p>
+                                </div>
+
+                                {/* IT Support Toggle */}
+                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                                  <label className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                                    <Cpu className="h-4 w-4 text-purple-600" />
+                                    <span>IT Tech Support Assistance</span>
+                                  </label>
+                                  <div className="grid grid-cols-3 gap-2">
+                                    {(["All", "Yes", "No"] as const).map((opt) => (
+                                      <button
+                                        key={opt}
+                                        type="button"
+                                        onClick={() => setTempITSupport(opt)}
+                                        className={`py-2.5 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                                          tempITSupport === opt
+                                            ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                                        }`}
+                                      >
+                                        {opt === "All" ? "Any IT Status" : opt === "Yes" ? "Required (Yes)" : "Not Required"}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                {/* F&B Catering Toggle */}
+                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                                  <label className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                                    <Coffee className="h-4 w-4 text-rose-600" />
+                                    <span>Food &amp; Refreshments Catering</span>
+                                  </label>
+                                  <div className="grid grid-cols-3 gap-2">
+                                    {(["All", "Yes", "No"] as const).map((opt) => (
+                                      <button
+                                        key={opt}
+                                        type="button"
+                                        onClick={() => setTempFB(opt)}
+                                        className={`py-2.5 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                                          tempFB === opt
+                                            ? "bg-rose-600 text-white border-rose-600 shadow-sm"
+                                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                                        }`}
+                                      >
+                                        {opt === "All" ? "Any F&B Status" : opt === "Yes" ? "Required (Yes)" : "Not Required"}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* MEETING SCOPE FACET PANEL */}
+                            {activeModalFacet === "scope" && (
+                              <div className="space-y-4">
+                                <div className="border-b border-slate-100 pb-3">
+                                  <h4 className="font-bold text-sm text-slate-900">Meeting Scope &amp; Guest Type</h4>
+                                  <p className="text-xs text-slate-500">Filter between internal team sessions or external client meetings.</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                  {[
+                                    { id: "All", title: "All Meetings", desc: "Internal staff and external guests" },
+                                    { id: "Internal", title: "Internal Only", desc: "Only internal staff attendees" },
+                                    { id: "External", title: "External Visitors", desc: "Includes registered client/guest visitors" }
+                                  ].map((item) => (
+                                    <button
+                                      key={item.id}
+                                      type="button"
+                                      onClick={() => setTempMeetingType(item.id as any)}
+                                      className={`p-4 rounded-xl text-xs text-left transition-all cursor-pointer border flex flex-col justify-between ${
+                                        tempMeetingType === item.id
+                                          ? "bg-amber-50 text-amber-950 border-amber-500 font-bold shadow-xs"
+                                          : "bg-white text-slate-800 border-slate-200 hover:bg-slate-50"
+                                      }`}
+                                    >
+                                      <div>
+                                        <div className="font-bold text-sm">{item.title}</div>
+                                        <p className="text-[11px] text-slate-500 mt-1 font-normal">{item.desc}</p>
+                                      </div>
+                                      {tempMeetingType === item.id && (
+                                        <div className="mt-3 text-amber-600 font-extrabold flex items-center gap-1">
+                                          <Check className="h-4 w-4" /> Selected
+                                        </div>
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* RESERVATION STATUS FACET PANEL */}
+                            {activeModalFacet === "status" && (
+                              <div className="space-y-4">
+                                <div className="border-b border-slate-100 pb-3">
+                                  <h4 className="font-bold text-sm text-slate-900">Reservation Status</h4>
+                                  <p className="text-xs text-slate-500">Filter by booking state in the room schedule system.</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                  {[
+                                    { id: "All", title: "All Statuses", desc: "Include both active and cancelled slots" },
+                                    { id: "Approved", title: "Approved / Active", desc: "Confirmed locked reservation slots" },
+                                    { id: "Cancelled", title: "Cancelled", desc: "Previously cancelled reservations" }
+                                  ].map((item) => (
+                                    <button
+                                      key={item.id}
+                                      type="button"
+                                      onClick={() => setTempStatus(item.id as any)}
+                                      className={`p-4 rounded-xl text-xs text-left transition-all cursor-pointer border flex flex-col justify-between ${
+                                        tempStatus === item.id
+                                          ? "bg-blue-50 text-blue-950 border-blue-500 font-bold shadow-xs"
+                                          : "bg-white text-slate-800 border-slate-200 hover:bg-slate-50"
+                                      }`}
+                                    >
+                                      <div>
+                                        <div className="font-bold text-sm">{item.title}</div>
+                                        <p className="text-[11px] text-slate-500 mt-1 font-normal">{item.desc}</p>
+                                      </div>
+                                      {tempStatus === item.id && (
+                                        <div className="mt-3 text-blue-600 font-extrabold flex items-center gap-1">
+                                          <Check className="h-4 w-4" /> Selected
+                                        </div>
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* DATE FACET PANEL */}
+                            {activeModalFacet === "date" && (
+                              <div className="space-y-5">
+                                <div className="border-b border-slate-100 pb-3">
+                                  <h4 className="font-bold text-sm text-slate-900">Meeting Date Range</h4>
+                                  <p className="text-xs text-slate-500">Filter room bookings within a specific start and end date window.</p>
+                                </div>
+
+                                <div className="max-w-lg bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div className="space-y-1.5">
+                                      <label className="text-xs font-bold text-slate-700 block">From (Start Date):</label>
+                                      <input
+                                        type="date"
+                                        value={tempStartDate}
+                                        onChange={(e) => setTempStartDate(e.target.value)}
+                                        className="w-full px-3.5 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
+                                      />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <label className="text-xs font-bold text-slate-700 block">To (End Date):</label>
+                                      <input
+                                        type="date"
+                                        value={tempEndDate}
+                                        onChange={(e) => setTempEndDate(e.target.value)}
+                                        className="w-full px-3.5 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200/80">
+                                    <span className="text-[11px] font-bold text-slate-500 mr-1">Presets:</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const today = new Date().toLocaleDateString("en-CA");
+                                        setTempStartDate(today);
+                                        setTempEndDate(today);
+                                      }}
+                                      className="px-2.5 py-1.5 bg-white hover:bg-slate-200 border border-slate-300 text-slate-800 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                                    >
+                                      Today
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const tmr = new Date();
+                                        tmr.setDate(tmr.getDate() + 1);
+                                        const tmrISO = tmr.toLocaleDateString("en-CA");
+                                        setTempStartDate(tmrISO);
+                                        setTempEndDate(tmrISO);
+                                      }}
+                                      className="px-2.5 py-1.5 bg-white hover:bg-slate-200 border border-slate-300 text-slate-800 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                                    >
+                                      Tomorrow
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const now = new Date();
+                                        const todayISO = now.toLocaleDateString("en-CA");
+                                        const next7 = new Date();
+                                        next7.setDate(now.getDate() + 7);
+                                        const next7ISO = next7.toLocaleDateString("en-CA");
+                                        setTempStartDate(todayISO);
+                                        setTempEndDate(next7ISO);
+                                      }}
+                                      className="px-2.5 py-1.5 bg-white hover:bg-slate-200 border border-slate-300 text-slate-800 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                                    >
+                                      Next 7 Days
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const now = new Date();
+                                        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString("en-CA");
+                                        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toLocaleDateString("en-CA");
+                                        setTempStartDate(firstDay);
+                                        setTempEndDate(lastDay);
+                                      }}
+                                      className="px-2.5 py-1.5 bg-white hover:bg-slate-200 border border-slate-300 text-slate-800 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                                    >
+                                      This Month
+                                    </button>
+                                    {(tempStartDate || tempEndDate) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => { setTempStartDate(""); setTempEndDate(""); }}
+                                        className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-bold transition-all cursor-pointer ml-auto"
+                                      >
+                                        Clear Dates
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="px-6 py-4 bg-slate-100 border-t border-slate-200 flex items-center justify-between shrink-0">
+                          <button
+                            id="reset-temp-filters-btn"
+                            type="button"
+                            onClick={() => {
+                              setTempDepartment("All");
+                              setTempITSupport("All");
+                              setTempFB("All");
+                              setTempMeetingType("All");
+                              setTempRoomId("All");
+                              setTempStatus("All");
+                              setTempStartDate("");
+                              setTempEndDate("");
+                              setDeptSearchInModal("");
+                            }}
+                            className="text-xs font-bold text-slate-500 hover:text-slate-900 flex items-center space-x-1 cursor-pointer"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                            <span>Reset All Filters</span>
+                          </button>
+
+                          <div className="flex items-center space-x-3">
+                            <button
+                              id="cancel-filter-modal-btn"
+                              type="button"
+                              onClick={() => setShowFilterModal(false)}
+                              className="px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+
+                            <button
+                              id="apply-modal-filters-btn"
+                              type="button"
+                              onClick={applyModalFilters}
+                              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 transition-all cursor-pointer flex items-center space-x-1.5"
+                            >
+                              <Check className="h-4 w-4" />
+                              <span>Apply Filters ({tempActiveFilterCount})</span>
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    </div>
+                  )}
+                </AnimatePresence>
               </motion.div>
             );
           })()}
@@ -2259,18 +3478,16 @@ export default function App() {
                   <button
                     id="admin-clear-bookings-btn"
                     onClick={async () => {
-                      if (confirm("Are you sure you want to permanently delete all previous bookings? This cannot be undone.")) {
-                        try {
-                          setAdminLoading(true);
-                          await apiService.clearAllBookings();
-                          alert("All bookings have been successfully removed.");
-                          fetchBookingsData();
-                          fetchAdminData();
-                        } catch (err: any) {
-                          alert("Failed to clear bookings: " + err.message);
-                        } finally {
-                          setAdminLoading(false);
-                        }
+                      try {
+                        setAdminLoading(true);
+                        await apiService.clearAllBookings();
+                        setCancelSuccessMsg("All bookings have been successfully removed.");
+                        fetchBookingsData();
+                        fetchAdminData();
+                      } catch (err: any) {
+                        setGlobalError("Failed to clear bookings: " + err.message);
+                      } finally {
+                        setAdminLoading(false);
                       }
                     }}
                     className="mt-2 sm:mt-0 inline-flex items-center px-4 py-2 bg-red-600 hover:bg-red-750 text-white font-bold text-xs rounded-lg shadow cursor-pointer transition-all animate-pulse"
@@ -2282,6 +3499,108 @@ export default function App() {
                 <p className="text-xs text-slate-400">
                   Clicking this button will permanently delete all meeting reservations from Firestore, allowing you to start with a fresh booking schedule.
                 </p>
+              </div>
+
+              {/* Outbound Email & IT Notification Logs */}
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <div className="sm:flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
+                  <div>
+                    <h3 className="font-display font-semibold text-slate-900 text-lg flex items-center gap-2">
+                      <Mail className="h-5 w-5 text-purple-600" />
+                      <span>Outbound Email & IT Notification Logs (it@psgroup.in)</span>
+                    </h3>
+                    <p className="text-xs text-slate-500">Real-time status of outgoing emails, SMTP delivery states, and error diagnostics.</p>
+                  </div>
+                  <div className="flex items-center space-x-2 mt-2 sm:mt-0">
+                    <button
+                      id="admin-refresh-notifs-btn"
+                      onClick={fetchAdminData}
+                      className="inline-flex items-center px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition-all cursor-pointer"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 mr-1" />
+                      Refresh Logs
+                    </button>
+                    <button
+                      id="admin-test-email-btn"
+                      onClick={handleSendTestITEmail}
+                      className="inline-flex items-center px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-lg shadow transition-all cursor-pointer"
+                    >
+                      <Send className="w-3.5 h-3.5 mr-1.5" />
+                      Test Email Dispatch
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 mb-4 text-xs text-amber-900 space-y-1">
+                  <p className="font-bold flex items-center gap-1.5">
+                    <Info className="h-4 w-4 text-amber-600 shrink-0" />
+                    <span>How IT Email Notifications Work in Cloud Environments:</span>
+                  </p>
+                  <p className="text-amber-800 leading-relaxed">
+                    • <strong>Status "LOGGED_ONLY":</strong> The system generated the email and recorded it in the database. Outbound SMTP credentials (<code className="bg-amber-100 px-1 rounded">SMTP_HOST</code>, <code className="bg-amber-100 px-1 rounded">SMTP_USER</code>, <code className="bg-amber-100 px-1 rounded">SMTP_PASS</code>) are not configured in environment variables, so the email was logged safely rather than sent to inbox.
+                  </p>
+                  <p className="text-amber-800 leading-relaxed">
+                    • <strong>Status "SUCCESS":</strong> Email was dispatched through SMTP server directly to <code className="bg-amber-100 px-1 rounded">it@psgroup.in</code>.
+                  </p>
+                  <p className="text-amber-800 leading-relaxed">
+                    • <strong>Status "FAILED":</strong> SMTP server attempted delivery but returned an error (e.g. invalid host or credentials).
+                  </p>
+                </div>
+
+                {notificationLogs.length === 0 ? (
+                  <p className="text-center text-slate-400 py-8 text-xs font-medium">No outbound email notifications logged yet.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
+                          <th className="px-4 py-3">Timestamp</th>
+                          <th className="px-4 py-3">Recipient</th>
+                          <th className="px-4 py-3">Subject</th>
+                          <th className="px-4 py-3">Status</th>
+                          <th className="px-4 py-3">Diagnostic Message / Error</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {notificationLogs.map((log) => {
+                          const statusColor =
+                            log.status === "success"
+                              ? "bg-green-100 text-green-800 border-green-200"
+                              : log.status === "failed"
+                                ? "bg-red-100 text-red-800 border-red-200"
+                                : "bg-amber-100 text-amber-800 border-amber-200";
+
+                          const statusLabel =
+                            log.status === "success"
+                              ? "SUCCESS (SENT)"
+                              : log.status === "failed"
+                                ? "FAILED"
+                                : "LOGGED (NO SMTP)";
+
+                          return (
+                            <tr key={log.notificationId} className="hover:bg-slate-50/70 transition-colors">
+                              <td className="px-4 py-3 whitespace-nowrap text-slate-500 font-mono text-[11px]">
+                                {new Date(log.sentAt).toLocaleString()}
+                              </td>
+                              <td className="px-4 py-3 font-semibold text-slate-800">{log.emailTo}</td>
+                              <td className="px-4 py-3 text-slate-700 max-w-xs truncate" title={log.subject}>
+                                {log.subject}
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${statusColor}`}>
+                                  {statusLabel}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-slate-600 max-w-md text-[11px] leading-relaxed">
+                                {log.errorMessage || (log.status === "logged_only" ? "Recorded in database (SMTP server credentials not configured)" : "Delivered successfully.")}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
@@ -2473,6 +3792,85 @@ export default function App() {
                   {loginLoading ? "Authenticating Securely..." : "Verify & Authenticate"}
                 </button>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Cancellation Confirmation Modal */}
+      <AnimatePresence>
+        {bookingToCancel && (
+          <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-slate-200"
+            >
+              <div className="flex items-center space-x-3 mb-4 text-red-600">
+                <div className="p-3 bg-red-100 rounded-full shrink-0">
+                  <AlertTriangle className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">Cancel Reservation</h3>
+                  <p className="text-xs text-slate-500">Confirm cancellation of this meeting room booking.</p>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs space-y-2 mb-6">
+                <div className="flex justify-between text-slate-600">
+                  <span className="font-medium text-slate-500">Room:</span>
+                  <span className="font-bold text-slate-800">
+                    {rooms.find((r) => r.roomId === bookingToCancel.roomId)?.name || bookingToCancel.roomId}
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span className="font-medium text-slate-500">Date &amp; Time:</span>
+                  <span className="font-bold text-slate-800">
+                    {bookingToCancel.date} at {bookingToCancel.startTime} ({bookingToCancel.duration} mins)
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span className="font-medium text-slate-500">Booker / Host:</span>
+                  <span className="font-bold text-slate-800">
+                    {bookingToCancel.bookerName || "Employee"} ({bookingToCancel.bookerEmail || "N/A"})
+                  </span>
+                </div>
+                {bookingToCancel.reason && (
+                  <div className="flex justify-between text-slate-600">
+                    <span className="font-medium text-slate-500">Agenda:</span>
+                    <span className="font-medium text-slate-700 italic truncate max-w-[200px]">
+                      {bookingToCancel.reason}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setBookingToCancel(null)}
+                  disabled={cancelLoading}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-100 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Keep Reservation
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmCancelBooking}
+                  disabled={cancelLoading}
+                  className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-md shadow-red-600/20 transition-all cursor-pointer flex items-center space-x-2"
+                >
+                  {cancelLoading ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span>Cancelling...</span>
+                    </>
+                  ) : (
+                    <span>Yes, Cancel Reservation</span>
+                  )}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

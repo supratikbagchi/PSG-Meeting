@@ -1,3 +1,30 @@
+export const DEPARTMENT_LIST = [
+  "BIM",
+  "Budgeting and Cost Control",
+  "Central Monitoring Cell",
+  "Contracts",
+  "Corporate Legal",
+  "Customer Care and Credit Assistance",
+  "Customer Connect",
+  "Customer Relationship",
+  "EHS & Security",
+  "Enterprise Technology & Automation",
+  "ESG",
+  "Facility and Operations",
+  "Finance and Taxation / Accounts",
+  "Government Approval and Compliances",
+  "Human Resources",
+  "Ideation and Design Management",
+  "Land Legal",
+  "Litigation and Dispute",
+  "MEP",
+  "Planning",
+  "Plant and Machinery",
+  "Procurement",
+  "QA and QC",
+  "Stores"
+] as const;
+
 export interface User {
   uid: string;
   email: string;
@@ -6,6 +33,7 @@ export interface User {
   isApproved: boolean;
   createdAt: string;
   department?: string;
+  passwordHash?: string;
 }
 
 export interface Room {
@@ -13,6 +41,15 @@ export interface Room {
   name: string;
   capacity: number;
   features: string[];
+}
+
+export interface ExternalGuest {
+  guestId?: string;
+  name: string;
+  company?: string;
+  email?: string;
+  phone?: string;
+  whomToMeet?: string;
 }
 
 export interface Booking {
@@ -26,16 +63,19 @@ export interface Booking {
   createdAt: string;
   bookerName?: string;
   bookerEmail?: string;
+  department?: string;
   attendeesCount?: number;
   reason: string;
   meetingType?: "Internal" | "External";
   externalName?: string;
   externalCompany?: string;
   externalWhomToMeet?: string;
+  externalGuests?: ExternalGuest[];
   itSupportRequired?: boolean;
   fbRequired?: boolean;
   outlookEventId?: string;
   outlookSynced?: boolean;
+  emailDeliveryNote?: string;
 }
 
 export interface NotificationLog {
@@ -46,7 +86,8 @@ export interface NotificationLog {
   body: string;
   sentAt: string;
   priority: "Normal" | "High";
-  status: "success" | "logged_only";
+  status: "success" | "logged_only" | "failed";
+  errorMessage?: string;
 }
 
 export interface Recommendation {

@@ -1,4 +1,4 @@
-import { User, Room, Booking, NotificationLog, Recommendation, AdminActivityLog } from "../types";
+import { User, Room, Booking, NotificationLog, Recommendation, AdminActivityLog, ExternalGuest } from "../types";
 import { db, auth, hashPassword, seedFirestoreIfNeeded, handleFirestoreError, OperationType } from "./firebase";
 import {
   collection,
@@ -34,6 +34,21 @@ async function ensureDb() {
       isSeeded = true;
     }
   }
+}
+
+// Helper to recursively remove undefined properties before saving to Firestore
+function cleanFirestoreData<T extends Record<string, any>>(data: T): T {
+  const cleaned: Record<string, any> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value !== undefined) {
+      if (value !== null && typeof value === "object" && !Array.isArray(value) && !(value instanceof Date)) {
+        cleaned[key] = cleanFirestoreData(value);
+      } else {
+        cleaned[key] = value;
+      }
+    }
+  }
+  return cleaned as T;
 }
 
 /**
@@ -83,14 +98,14 @@ async function addAdminActivity(action: string, details: string): Promise<void> 
     const logId = "log-" + Math.random().toString(36).substr(2, 9);
     const log: AdminActivityLog = {
       logId,
-      adminEmail: activeUser?.email || "admin@psgroup.in",
-      adminName: activeUser?.name || "PS Group Admin",
+      adminEmail: activeUser?.email || "admin",
+      adminName: activeUser?.name || "System Admin",
       action,
       details,
       timestamp: new Date().toISOString()
     };
     await runFirestore(
-      () => setDoc(doc(db, "adminActivities", logId), log),
+      () => setDoc(doc(db, "adminActivities", logId), cleanFirestoreData(log)),
       OperationType.WRITE,
       "adminActivities"
     );
@@ -176,87 +191,100 @@ export const apiService = {
   },
 
   /**
-   * Login credentials verification
+   * Login credentials verification - dynamically fetches user details from database
    */
   async login(email: string, password: string): Promise<{ token: string; user: User }> {
     await ensureDb();
     const formattedEmail = email.toLowerCase().trim();
 
-    // Standard Firebase Auth sign in
-    let userCredential;
+    if (!formattedEmail || !password) {
+      throw new Error("Please enter both email address and password.");
+    }
+
+    // 1. Query Firestore users collection dynamically by email
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("email", "==", formattedEmail));
+    const querySnapshot = await runFirestore(
+      () => getDocs(q),
+      OperationType.GET,
+      "users"
+    );
+
+    let userDocData: User | null = null;
+    let userDocId: string | null = null;
+
+    if (!querySnapshot.empty) {
+      const matchedDoc = querySnapshot.docs[0];
+      userDocData = matchedDoc.data() as User;
+      userDocId = matchedDoc.id;
+    }
+
+    // 2. Attempt authentication via Firebase Auth and database password verification
+    let firebaseUser: any = null;
     try {
-      userCredential = await signInWithEmailAndPassword(auth, formattedEmail, password);
-    } catch (err: any) {
-      // If the seeded users don't exist in Firebase Auth yet, try auto-creating them
-      if (formattedEmail === "admin@psgroup.in" && password === "QW!@12") {
-        try {
-          // If the password was changed but the firebase auth still has "admin123", try to login with "admin123" and update it
-          const { updatePassword } = await import("firebase/auth");
-          userCredential = await signInWithEmailAndPassword(auth, formattedEmail, "admin123");
-          if (userCredential.user) {
-            await updatePassword(userCredential.user, "QW!@12");
-          }
-        } catch (updateErr) {
+      const userCredential = await signInWithEmailAndPassword(auth, formattedEmail, password);
+      firebaseUser = userCredential.user;
+    } catch (authErr: any) {
+      // If Firebase Auth fails, check database passwordHash dynamically
+      if (userDocData && userDocData.passwordHash) {
+        const hashedInput = await hashPassword(password);
+        if (hashedInput === userDocData.passwordHash) {
+          // Password matches database record! Try auto-registering in Firebase Auth if not already created
           try {
-            // Otherwise, they might not exist yet, try creating them
-            userCredential = await createUserWithEmailAndPassword(auth, formattedEmail, password);
+            const createCred = await createUserWithEmailAndPassword(auth, formattedEmail, password);
+            firebaseUser = createCred.user;
           } catch (createErr) {
-            throw err;
+            firebaseUser = { uid: userDocId || userDocData.uid, email: formattedEmail, emailVerified: true };
           }
-        }
-      } else if (
-        (formattedEmail === "user@psgroup.in" && password === "user123") ||
-        (formattedEmail === "pending@psgroup.in" && password === "user123")
-      ) {
-        try {
-          userCredential = await createUserWithEmailAndPassword(auth, formattedEmail, password);
-        } catch (createErr) {
-          throw err;
+        } else {
+          throw new Error("Invalid corporate email or password.");
         }
       } else {
-        throw new Error(err.message || "Invalid credentials");
+        throw new Error("Invalid corporate email or password.");
       }
     }
 
-    const firebaseUser = userCredential.user;
-
-    // Retrieve user document from Firestore users collection
-    const userRef = doc(db, "users", firebaseUser.uid);
-    let userSnap = await runFirestore(
-      () => getDoc(userRef),
-      OperationType.GET,
-      `users/${firebaseUser.uid}`
-    );
-
-    let user: User;
-    if (userSnap.exists()) {
-      user = userSnap.data() as User;
-    } else {
-      // Create user doc if not present
-      const isPendingEmail = formattedEmail === "pending@psgroup.in";
-      user = {
-        uid: firebaseUser.uid,
-        email: formattedEmail,
-        name: formattedEmail === "admin@psgroup.in" ? "PS Group Admin" : "Supratik Bagchi",
-        role: formattedEmail === "admin@psgroup.in" ? "Admin" : "User",
-        isApproved: !isPendingEmail,
-        createdAt: new Date().toISOString()
-      };
-      await runFirestore(
-        () => setDoc(userRef, user),
-        OperationType.WRITE,
-        "users"
+    // 3. If no user document was found in Firestore, retrieve or create dynamically
+    if (!userDocData) {
+      const userRef = doc(db, "users", firebaseUser.uid);
+      const userSnap = await runFirestore(
+        () => getDoc(userRef),
+        OperationType.GET,
+        `users/${firebaseUser.uid}`
       );
+
+      if (userSnap.exists()) {
+        userDocData = userSnap.data() as User;
+      } else {
+        userDocData = {
+          uid: firebaseUser.uid,
+          email: formattedEmail,
+          name: firebaseUser.displayName || formattedEmail.split("@")[0] || "User",
+          role: "User",
+          isApproved: true,
+          createdAt: new Date().toISOString()
+        };
+        await runFirestore(
+          () => setDoc(userRef, userDocData!),
+          OperationType.WRITE,
+          "users"
+        );
+      }
     }
 
-    const token = `jwt-mock-${user.uid}`;
-    const userWithVerify = { ...user, emailVerified: firebaseUser.emailVerified };
+    // 4. Check approval status dynamically from database record
+    if (!userDocData.isApproved) {
+      throw new Error("Your account has not been approved yet. Please wait for an administrator to approve your registration.");
+    }
+
+    const token = `jwt-mock-${userDocData.uid}`;
+    const userWithVerify = { ...userDocData, emailVerified: firebaseUser ? !!firebaseUser.emailVerified : true };
     this.setSession(token, userWithVerify);
     return { token, user: userWithVerify };
   },
 
   /**
-   * Register a new corporate employee profile
+   * Register a new corporate employee profile dynamically in database
    */
   async register(email: string, password: string, name: string, department: string): Promise<{ message: string; user: User }> {
     await ensureDb();
@@ -266,11 +294,6 @@ export const apiService = {
 
     if (!formattedDepartment) {
       throw new Error("Department field is mandatory.");
-    }
-
-    // Domain validation
-    if (!formattedEmail.endsWith("@psgroup.in")) {
-      throw new Error("Registration is restricted to PS Group employees only. Email must end with '@psgroup.in'.");
     }
 
     // Standard Firebase Auth create user
@@ -290,10 +313,13 @@ export const apiService = {
       console.error("Failed to send verification email:", err);
     }
 
+    const pwdHash = await hashPassword(password);
+
     // Create profile doc in Firestore users
     const newUser: User = {
       uid: firebaseUser.uid,
       email: formattedEmail,
+      passwordHash: pwdHash,
       name,
       role: "User",
       isApproved: true,
@@ -478,11 +504,13 @@ export const apiService = {
     duration: number;
     bookerName: string;
     bookerEmail: string;
+    department?: string;
     reason: string;
     meetingType?: "Internal" | "External";
     externalName?: string;
     externalCompany?: string;
     externalWhomToMeet?: string;
+    externalGuests?: ExternalGuest[];
     attendeesCount?: number;
     clientDate?: string;
     clientTime?: string;
@@ -551,12 +579,30 @@ export const apiService = {
       createdAt: new Date().toISOString(),
       reason: bookingDetails.reason.trim(),
       meetingType: mType,
-      externalName: mType === "External" ? bookingDetails.externalName?.trim() : undefined,
-      externalCompany: mType === "External" ? (bookingDetails.externalCompany?.trim() || "") : undefined,
-      externalWhomToMeet: mType === "External" ? bookingDetails.externalWhomToMeet?.trim() : undefined,
       itSupportRequired: !!bookingDetails.itSupportRequired,
       fbRequired: !!bookingDetails.fbRequired,
     };
+
+    if (mType === "External") {
+      if (bookingDetails.externalGuests && bookingDetails.externalGuests.length > 0) {
+        newBooking.externalGuests = bookingDetails.externalGuests.filter(g => g.name && g.name.trim() !== "");
+        if (newBooking.externalGuests.length > 0) {
+          newBooking.externalName = newBooking.externalGuests[0].name.trim();
+          newBooking.externalCompany = newBooking.externalGuests[0].company?.trim() || bookingDetails.externalCompany?.trim();
+          newBooking.externalWhomToMeet = newBooking.externalGuests[0].whomToMeet?.trim() || bookingDetails.externalWhomToMeet?.trim();
+        }
+      } else {
+        if (bookingDetails.externalName?.trim()) {
+          newBooking.externalName = bookingDetails.externalName.trim();
+        }
+        if (bookingDetails.externalCompany?.trim()) {
+          newBooking.externalCompany = bookingDetails.externalCompany.trim();
+        }
+        if (bookingDetails.externalWhomToMeet?.trim()) {
+          newBooking.externalWhomToMeet = bookingDetails.externalWhomToMeet.trim();
+        }
+      }
+    }
 
     if (user?.uid) {
       newBooking.userId = user.uid;
@@ -567,53 +613,150 @@ export const apiService = {
     if (bookingDetails.bookerEmail) {
       newBooking.bookerEmail = bookingDetails.bookerEmail;
     }
+    const dept = bookingDetails.department || user?.department;
+    if (dept) {
+      newBooking.department = dept;
+    }
     if (bookingDetails.attendeesCount !== undefined) {
       newBooking.attendeesCount = Number(bookingDetails.attendeesCount);
     }
 
+    const cleanBooking = cleanFirestoreData(newBooking);
+
     await runFirestore(
-      () => setDoc(doc(db, "bookings", bookingId), newBooking),
+      () => setDoc(doc(db, "bookings", bookingId), cleanBooking),
       OperationType.WRITE,
       "bookings"
     );
 
-    // If IT Support is required, generate and log an IT Helpdesk notification with calendar invite details
-    if (newBooking.itSupportRequired) {
-      try {
-        const notifId = "notif-it-" + Math.random().toString(36).substr(2, 9);
-        const itNotif: NotificationLog = {
-          notificationId: notifId,
+    // Automatically dispatch server email notification to supratik@psgroup.in with attached calendar invite
+    let emailNote = "";
+    const isITRequired = !!newBooking.itSupportRequired;
+    const roomsList = await this.getRooms();
+    const targetRoom = roomsList.find(r => r.roomId === newBooking.roomId);
+    const roomDisplayName = targetRoom ? targetRoom.name : newBooking.roomId;
+
+    const emailSubject = isITRequired
+      ? `[IT Support Required] Meeting Room Reservation: ${roomDisplayName} on ${newBooking.date} at ${newBooking.startTime}`
+      : `[Meeting Reservation] ${roomDisplayName} booked for ${newBooking.date} at ${newBooking.startTime}`;
+
+    let externalGuestsText = "";
+    if (newBooking.externalGuests && newBooking.externalGuests.length > 0) {
+      externalGuestsText = `• External Guests (${newBooking.externalGuests.length}):\n` +
+        newBooking.externalGuests.map((g, idx) => {
+          let details = `  ${idx + 1}. ${g.name}`;
+          if (g.company) details += ` (${g.company})`;
+          if (g.email) details += ` - Email: ${g.email}`;
+          if (g.phone) details += ` - Phone: ${g.phone}`;
+          if (g.whomToMeet) details += ` - Meeting: ${g.whomToMeet}`;
+          return details;
+        }).join("\n") + "\n";
+    } else if (newBooking.externalName) {
+      externalGuestsText = `• External Visitor: ${newBooking.externalName} (${newBooking.externalCompany || "N/A"})\n`;
+    }
+
+    const emailBody = `MEETING ROOM RESERVATION DETAILS\n\n` +
+      `• Meeting Room: ${roomDisplayName}\n` +
+      `• Date of Meeting: ${newBooking.date}\n` +
+      `• Time of Meeting: ${newBooking.startTime} (${newBooking.duration} mins)\n` +
+      `• Host Name: ${newBooking.bookerName || "N/A"}\n` +
+      `• Host Email: ${newBooking.bookerEmail || "N/A"}\n` +
+      `• Department: ${newBooking.department || "N/A"}\n` +
+      `• Agenda / Title: ${newBooking.reason || "Corporate Meeting"}\n` +
+      `• Meeting Type: ${newBooking.meetingType || "Internal"}\n` +
+      `• IT Support Required: ${isITRequired ? "YES (AV / Technical Setup Needed)" : "No"}\n` +
+      `• F&B Required: ${newBooking.fbRequired ? "YES" : "No"}\n` +
+      (newBooking.attendeesCount ? `• Attendees Count: ${newBooking.attendeesCount}\n` : "") +
+      externalGuestsText +
+      `\nAn iCalendar (.ics) event invite is attached so this meeting can be added directly to your calendar.`;
+
+    let emailStatus: "success" | "logged_only" | "failed" = "logged_only";
+    let emailStatusMessage = "";
+
+    try {
+      const response = await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: "supratik@psgroup.in",
+          subject: emailSubject,
+          body: emailBody,
+          priority: isITRequired ? "High" : "Normal",
           bookingId: newBooking.bookingId,
-          emailTo: "ithelpdesk@psgroup.in",
-          subject: `[IT Support Required] Meeting on ${newBooking.date} at ${newBooking.startTime}`,
-          body: `IT SUPPORT & AV SETUP REQUEST\n\n` +
-            `• Date of Meeting: ${newBooking.date}\n` +
-            `• Time of Meeting: ${newBooking.startTime} (${newBooking.duration} mins)\n` +
-            `• Host Name: ${newBooking.bookerName || "N/A"}\n` +
-            `• Host Email: ${newBooking.bookerEmail || "N/A"}\n` +
-            `• Agenda / Title: ${newBooking.reason}\n` +
-            `• Meeting Type: ${newBooking.meetingType || "Internal"}\n` +
-            (newBooking.externalName ? `• External Visitor: ${newBooking.externalName} (${newBooking.externalCompany || "N/A"})\n` : "") +
-            `• Action Required: Please prepare IT & AV support prior to meeting start time.\n\n` +
-            `Note: Calendar invite format (.ics) generated for easy import into IT Helpdesk calendar.`,
-          sentAt: new Date().toISOString(),
-          priority: "High",
-          status: "success"
-        };
-        await runFirestore(
-          () => setDoc(doc(db, "notifications", notifId), itNotif),
-          OperationType.WRITE,
-          "notifications"
-        );
-      } catch (notifErr) {
-        console.warn("Could not log IT Support notification to Firestore:", notifErr);
+          booking: {
+            bookingId: newBooking.bookingId,
+            date: newBooking.date,
+            startTime: newBooking.startTime,
+            duration: newBooking.duration,
+            roomId: newBooking.roomId,
+            roomName: roomDisplayName,
+            reason: newBooking.reason || emailSubject,
+            bookerName: newBooking.bookerName,
+            bookerEmail: newBooking.bookerEmail,
+            department: newBooking.department,
+            meetingType: newBooking.meetingType
+          }
+        })
+      });
+
+      if (response.ok) {
+        const resData = await response.json();
+        emailStatus = resData.status;
+        emailStatusMessage = resData.message;
+      } else {
+        emailStatus = "failed";
+        emailStatusMessage = `Server HTTP error (${response.status}) while attempting email dispatch.`;
       }
+    } catch (err: any) {
+      emailStatus = "logged_only";
+      emailStatusMessage = "Backend mail API server unreachable. Email notification recorded in system database.";
+    }
+
+    emailNote = emailStatusMessage;
+    newBooking.emailDeliveryNote = emailStatusMessage;
+
+    // Log to Firestore notifications collection for audit and UI display
+    try {
+      const notifId = "notif-it-" + Math.random().toString(36).substr(2, 9);
+      const itNotif: NotificationLog = {
+        notificationId: notifId,
+        bookingId: newBooking.bookingId,
+        emailTo: "supratik@psgroup.in",
+        subject: emailSubject,
+        body: emailBody,
+        sentAt: new Date().toISOString(),
+        priority: isITRequired ? "High" : "Normal",
+        status: emailStatus,
+        errorMessage: emailStatusMessage
+      };
+      await runFirestore(
+        () => setDoc(doc(db, "notifications", notifId), cleanFirestoreData(itNotif)),
+        OperationType.WRITE,
+        "notifications"
+      );
+
+      // Also queue to Firebase "mail" collection (for Firebase "Trigger Email" Extension)
+      const mailDocId = "mail-" + Math.random().toString(36).substr(2, 9);
+      await runFirestore(
+        () => setDoc(doc(db, "mail", mailDocId), {
+          to: ["supratik@psgroup.in"],
+          message: {
+            subject: emailSubject,
+            text: emailBody,
+            html: emailBody.replace(/\n/g, "<br/>")
+          },
+          createdAt: new Date().toISOString(),
+          bookingId: newBooking.bookingId
+        }),
+        OperationType.WRITE,
+        "mail"
+      );
+    } catch (notifErr) {
+      console.warn("Could not log IT notification to Firestore:", notifErr);
     }
 
     return {
-      message: newBooking.itSupportRequired
-        ? "Your meeting room reservation is confirmed! IT Helpdesk (ithelpdesk@psgroup.in) has been notified with meeting details & calendar event for IT Support."
-        : "Your instant meeting reservation is successfully booked and confirmed!",
+      message: `Your meeting room reservation is confirmed! Automated server email notification status (supratik@psgroup.in): ${emailNote || "Recorded in server records."}`,
       booking: newBooking
     };
   },
@@ -624,29 +767,68 @@ export const apiService = {
   async cancelBooking(bookingId: string): Promise<Booking> {
     await ensureDb();
 
-    const bookingRef = doc(db, "bookings", bookingId);
-    const bookingDoc = await runFirestore(
-      () => getDoc(bookingRef),
+    let targetDocRef = doc(db, "bookings", bookingId);
+    let bookingDoc = await runFirestore(
+      () => getDoc(targetDocRef),
       OperationType.GET,
       `bookings/${bookingId}`
     );
 
-    if (!bookingDoc.exists()) {
-      throw new Error("Booking record not found");
+    let booking: Booking;
+
+    if (bookingDoc.exists()) {
+      booking = bookingDoc.data() as Booking;
+      booking.status = "Cancelled";
+      await runFirestore(
+        () => updateDoc(targetDocRef, { status: "Cancelled" }),
+        OperationType.UPDATE,
+        "bookings"
+      );
+    } else {
+      // Query collection for doc where bookingId === bookingId
+      const q = query(collection(db, "bookings"), where("bookingId", "==", bookingId));
+      const querySnap = await runFirestore(
+        () => getDocs(q),
+        OperationType.GET,
+        "bookings"
+      );
+      if (!querySnap.empty) {
+        const foundDoc = querySnap.docs[0];
+        booking = foundDoc.data() as Booking;
+        booking.status = "Cancelled";
+        await runFirestore(
+          () => updateDoc(foundDoc.ref, { status: "Cancelled" }),
+          OperationType.UPDATE,
+          "bookings"
+        );
+      } else {
+        // Fallback booking record if doc not in Firestore directly
+        booking = {
+          bookingId,
+          roomId: "N/A",
+          date: new Date().toISOString().split("T")[0],
+          startTime: "N/A",
+          duration: 30,
+          status: "Cancelled",
+          createdAt: new Date().toISOString(),
+          reason: "Cancelled by user"
+        };
+      }
     }
 
-    const booking = bookingDoc.data() as Booking;
-    booking.status = "Cancelled";
-
-    await runFirestore(
-      () => updateDoc(bookingRef, { status: "Cancelled" }),
-      OperationType.UPDATE,
-      "bookings"
-    );
+    // Call server endpoint to sync server state & dispatch cancellation email
+    try {
+      await fetch(`/api/bookings/${bookingId}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+    } catch (err) {
+      console.warn("Server cancel notification endpoint error:", err);
+    }
 
     await addAdminActivity(
       "Cancel Reservation",
-      `Cancelled reservation #${bookingId} for Room ID ${booking.roomId} (Booker: ${booking.bookerName})`
+      `Cancelled reservation #${bookingId} for Room ID ${booking.roomId} (Booker: ${booking.bookerName || "Employee"})`
     );
 
     return booking;
@@ -723,9 +905,9 @@ export const apiService = {
       return true;
     });
 
-    // Corporate Work Hours: 09:00 to 18:00
-    const workStart = 9 * 60; // 540 minutes
-    const workEnd = 18 * 60;  // 1080 minutes
+    // Corporate Work Hours: 09:00 to 20:00 (9:00 AM to 8:00 PM)
+    const workStart = 9 * 60; // 540 minutes (09:00)
+    const workEnd = 20 * 60;  // 1200 minutes (20:00 / 8:00 PM)
 
     // Generate intervals in 30-minute increments while accommodating 15-minute room service gaps via overlap validation
     const intervals: number[] = [];

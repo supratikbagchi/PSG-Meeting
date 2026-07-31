@@ -2,61 +2,48 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Check if the user is authenticated
+    // Helper functions
     function isAuthenticated() {
       return request.auth != null;
-    }
-    
-    // Check if the user is the admin
-    function isAdmin() {
-      return isAuthenticated() && request.auth.token.email == "admin@psgroup.in";
     }
 
     // Rooms collection
     match /rooms/{roomId} {
-      // Anyone can read rooms so that guests can browse room availability
-      allow read: if true;
-      // Allow writing if the user is admin, or during initial seeding (unauthenticated)
-      allow write: if !isAuthenticated() || isAdmin();
+      allow read, write: if true;
     }
     
     // Bookings collection
     match /bookings/{bookingId} {
-      // Anyone can read bookings to show availability calendars
-      allow read: if true;
-      // Anyone (including guests) can create a booking
-      allow create: if true;
-      // Only the booker or admin can update or delete a booking
-      allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.bookerEmail == request.auth.token.email);
+      allow read, write: if true;
     }
     
     // Users collection
     match /users/{userId} {
-      // Anyone can read users (needed for seeding checks and finding user details)
-      allow read: if true;
-      // Allow users to create/update their own profile, or unauthenticated seeding
-      allow create, update: if !isAuthenticated() || (isAuthenticated() && request.auth.uid == userId);
-      allow delete: if isAdmin();
+      allow read, write: if true;
     }
     
-    // Administrative activities and notifications
-    match /admin_activities/{docId} {
-      allow read, write: if !isAuthenticated() || isAdmin();
+    // Notifications collection (used for IT Support and booking alerts)
+    match /notifications/{docId} {
+      allow read, write: if true;
     }
     match /notification_logs/{docId} {
-      allow read, write: if !isAuthenticated() || isAdmin();
-    }
-    match /admin_users/{docId} {
-      allow read, write: if !isAuthenticated() || isAdmin();
-    }
-    match /adminActivities/{docId} {
-      allow read, write: if !isAuthenticated() || isAdmin();
+      allow read, write: if true;
     }
 
-    // Fallback rule for safety
+    // Administrative activities
+    match /admin_activities/{docId} {
+      allow read, write: if true;
+    }
+    match /adminActivities/{docId} {
+      allow read, write: if true;
+    }
+    match /admin_users/{docId} {
+      allow read, write: if true;
+    }
+
+    // Fallback rule for safety across all collections
     match /{document=**} {
-      allow read: if true;
-      allow write: if !isAuthenticated() || isAdmin();
+      allow read, write: if true;
     }
   }
 }

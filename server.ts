@@ -4,6 +4,7 @@ import fs from "fs";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import { createServer as createViteServer } from "vite";
 
 // Interfaces representing our database schema
@@ -31,7 +32,7 @@ interface Booking {
   date: string; // YYYY-MM-DD
   startTime: string; // HH:MM
   duration: number; // in minutes
-  status: "pending" | "Approved" | "Rejected";
+  status: "pending" | "Approved" | "Rejected" | "Cancelled";
   createdAt: string;
   bookerName?: string;
   bookerEmail?: string;
@@ -46,7 +47,8 @@ interface NotificationLog {
   body: string;
   sentAt: string;
   priority: "Normal" | "High";
-  status: "success" | "logged_only";
+  status: "success" | "logged_only" | "failed";
+  errorMessage?: string;
 }
 
 interface AdminActivityLog {
@@ -69,9 +71,7 @@ interface DatabaseSchema {
 const PORT = 3000;
 const DB_FILE = process.env.DATABASE_URL || "./db.json";
 const JWT_SECRET = process.env.JWT_SECRET || "meeting-room-booking-jwt-secret-key-12345";
-const ADMIN_ALERT_EMAIL = process.env.ADMIN_ALERT_EMAIL || "admin@psgroup.in";
-const ADMIN_ID = process.env.ADMIN_ID || "psgmeet";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "nowyouseeme";
+const ADMIN_ALERT_EMAIL = process.env.ADMIN_ALERT_EMAIL || "supratik@psgroup.in";
 
 // Simple PBKDF2 password hasher
 function hashPassword(password: string): string {
@@ -186,10 +186,10 @@ function saveDatabase(db: DatabaseSchema) {
 
 // Mailer client helper (transporter can be mock or real SMTP)
 function getTransporter() {
-  const host = process.env.SMTP_HOST;
+  const host = process.env.SMTP_HOST || "smtp.office365.com";
   const port = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 587;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+  const user = process.env.SMTP_USER || "supratik@psgroup.in";
+  const pass = process.env.SMTP_PASS || "czjyxgcrcfbqnxfs";
 
   if (host && user && pass) {
     return nodemailer.createTransport({
@@ -197,47 +197,241 @@ function getTransporter() {
       port,
       secure: port === 465,
       auth: { user, pass },
+      tls: {
+        rejectUnauthorized: false
+      }
     });
   }
   return null;
 }
 
-async function sendEmailNotification(to: string, subject: string, body: string, priority: "Normal" | "High", bookingId: string) {
+// Helper function to generate iCalendar (.ics) content for meeting invites
+function generateIcsContent(
+  booking: {
+    bookingId?: string;
+    date?: string; // YYYY-MM-DD
+    startTime?: string; // HH:MM
+    duration?: number; // in minutes
+    roomName?: string;
+    roomId?: string;
+    reason?: string;
+    bookerName?: string;
+    bookerEmail?: string;
+    department?: string;
+  },
+  recipientEmail?: string
+): string {
+  const now = new Date();
+  const pad = (n: number) => (n < 10 ? "0" + n : "" + n);
+  const dtStamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}Z`;
+
+  const bookingDateStr = booking?.date || now.toISOString().split("T")[0];
+  const startTimeStr = booking?.startTime || "09:00";
+  const durationMins = booking?.duration || 60;
+
+  const [year, month, day] = bookingDateStr.split("-").map(Number);
+  const [hour, minute] = startTimeStr.split(":").map(Number);
+
+  const startDate = new Date(year || now.getFullYear(), (month || 1) - 1, day || 1, hour || 9, minute || 0, 0);
+  const endDate = new Date(startDate.getTime() + durationMins * 60000);
+
+  const formatIcsDate = (d: Date) => {
+    return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
+  };
+
+  const dtStart = formatIcsDate(startDate);
+  const dtEnd = formatIcsDate(endDate);
+
+  const uid = (booking?.bookingId || "booking-" + Date.now()) + "@psgroup.in";
+  const summary = booking?.reason ? `Meeting: ${booking.reason}` : "Meeting Room Reservation";
+  const location = booking?.roomName || booking?.roomId || "PS Group Meeting Room";
+  const organizerName = booking?.bookerName || "PS Group Meeting Portal";
+
+  const rawOrgEmail = booking?.bookerEmail || "";
+  const organizerEmail = (rawOrgEmail && rawOrgEmail.includes("@") && !rawOrgEmail.includes("example.com") && !rawOrgEmail.includes("company.com"))
+    ? rawOrgEmail.trim()
+    : "supratik@psgroup.in";
+
+  const rawAttEmail = recipientEmail || "";
+  const attendeeEmail = (rawAttEmail && rawAttEmail.includes("@") && !rawAttEmail.includes("example.com") && !rawAttEmail.includes("company.com"))
+    ? rawAttEmail.trim()
+    : "supratik@psgroup.in";
+
+  const cleanStr = (str: string) => (str || "").replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+
+  const description = cleanStr(
+    `Meeting Room Reservation\n\n` +
+    `• Room: ${location}\n` +
+    `• Host: ${organizerName} (${organizerEmail})\n` +
+    `• Department: ${booking?.department || "N/A"}\n` +
+    `• Duration: ${durationMins} minutes\n` +
+    `• Agenda: ${booking?.reason || "Corporate Meeting"}`
+  );
+
+  const icsLines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//PS Group//Meeting Room Portal//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:REQUEST",
+    "BEGIN:VEVENT",
+    `UID:${uid}`,
+    `DTSTAMP:${dtStamp}`,
+    `DTSTART:${dtStart}`,
+    `DTEND:${dtEnd}`,
+    `SUMMARY:${cleanStr(summary)}`,
+    `DESCRIPTION:${description}`,
+    `LOCATION:${cleanStr(location)}`,
+    `ORGANIZER;CN="${cleanStr(organizerName)}":mailto:${organizerEmail}`,
+    `ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN="Participant":mailto:${attendeeEmail}`,
+    "STATUS:CONFIRMED",
+    "SEQUENCE:0",
+    "END:VEVENT",
+    "END:VCALENDAR"
+  ];
+
+  return icsLines.join("\r\n");
+}
+
+async function sendEmailNotification(
+  to: string,
+  subject: string,
+  body: string,
+  priority: "Normal" | "High",
+  bookingId: string,
+  bookingData?: any
+) {
   const dbObj = getDatabase();
   const transporter = getTransporter();
-  let status: "success" | "logged_only" = "logged_only";
+  let status: "success" | "logged_only" | "failed" = "logged_only";
+  let statusMessage = "";
 
-  if (transporter) {
+  const senderUser = process.env.SMTP_USER || "supratik@psgroup.in";
+
+  // List of non-existent or internal aliases that fail recipient lookup on Exchange
+  const invalidInternalAliases = [
+    "it@psgroup.in",
+    "ithelpdesk@psgroup.in",
+    "admin@psgroup.in",
+    "user@psgroup.in",
+    "pending@psgroup.in"
+  ];
+
+  // Determine valid target recipient email address
+  let recipient = senderUser;
+  if (to && typeof to === "string" && to.trim().includes("@")) {
+    const trimmed = to.trim().toLowerCase();
+    if (
+      !trimmed.includes("example.com") &&
+      !trimmed.includes("company.com") &&
+      !invalidInternalAliases.includes(trimmed)
+    ) {
+      recipient = to.trim();
+    }
+  }
+
+  const mailOptions: any = {
+    from: senderUser,
+    to: recipient,
+    envelope: {
+      from: senderUser,
+      to: recipient,
+    },
+    replyTo: senderUser,
+    subject,
+    text: body,
+    html: body.replace(/\n/g, "<br/>"),
+    headers: priority === "High" ? { "X-Priority": "1", "X-MSMail-Priority": "High", Importance: "high" } : undefined,
+  };
+
+  // Attach .ics iCalendar file for calendar invites if booking details exist
+  if (bookingData || (bookingId && bookingId !== "general")) {
+    const icsContent = generateIcsContent(bookingData || { bookingId, reason: subject }, recipient);
+    const icsFilename = `meeting-invite-${bookingId || "booking"}.ics`;
+
+    mailOptions.attachments = [
+      {
+        filename: icsFilename,
+        content: icsContent,
+        contentType: "text/calendar; method=REQUEST; charset=UTF-8; name=" + icsFilename,
+      },
+    ];
+  }
+
+  // 1. Try Resend API if RESEND_API_KEY is configured
+  if (process.env.RESEND_API_KEY) {
     try {
-      await transporter.sendMail({
-        from: `"Meeting Room Bookings" <${process.env.SMTP_USER}>`,
-        to,
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const fromAddress = process.env.RESEND_FROM_EMAIL || "Meeting Portal <onboarding@resend.dev>";
+
+      let resendAttachments: any[] = [];
+      if (bookingData || (bookingId && bookingId !== "general")) {
+        const icsContent = generateIcsContent(bookingData || { bookingId, reason: subject }, recipient);
+        const icsFilename = `meeting-invite-${bookingId || "booking"}.ics`;
+        resendAttachments.push({
+          filename: icsFilename,
+          content: Buffer.from(icsContent, "utf-8"),
+          contentType: "text/calendar; method=REQUEST; charset=UTF-8; name=" + icsFilename,
+        });
+      }
+
+      const resendResponse = await resend.emails.send({
+        from: fromAddress,
+        to: [recipient],
         subject,
         text: body,
-        headers: priority === "High" ? { "X-Priority": "1", "X-MSMail-Priority": "High", Importance: "high" } : undefined,
+        html: body.replace(/\n/g, "<br/>"),
+        attachments: resendAttachments.length > 0 ? resendAttachments : undefined,
       });
+
+      if (resendResponse.error) {
+        throw new Error(resendResponse.error.message);
+      }
+
       status = "success";
-      console.log(`[Email Sent] To: ${to} | Subject: ${subject}`);
-    } catch (err) {
-      console.error("SMTP Mail Send Failed, logged to DB only:", err);
+      statusMessage = `Email and Calendar Invite (.ics) successfully delivered via Resend API to ${recipient} (ID: ${resendResponse.data?.id})`;
+      console.log(`[Resend Success] Sent email & .ics invite to ${recipient} | Resend ID: ${resendResponse.data?.id}`);
+    } catch (resendErr: any) {
+      console.error("Resend API Delivery Error:", resendErr?.message || resendErr);
+      status = "failed";
+      statusMessage = `Resend API Delivery Error: ${resendErr?.message || String(resendErr)}`;
+    }
+  } else if (transporter) {
+    try {
+      await transporter.sendMail(mailOptions);
+      status = "success";
+      statusMessage = `Email and Calendar Invite (.ics) successfully sent via SMTP to ${recipient}`;
+      console.log(`[Email & ICS Sent] To: ${recipient} | Subject: ${subject}`);
+    } catch (err: any) {
+      status = "failed";
+      statusMessage = `SMTP Delivery Error: ${err?.message || String(err)}`;
+      console.error("SMTP Mail Send Failed:", err?.message || err);
     }
   } else {
-    console.log(`[Email Logged (No SMTP Configured)] To: ${to} | Subject: ${subject}`);
+    status = "logged_only";
+    statusMessage = "No active mail provider configured (RESEND_API_KEY or SMTP credentials). Email was recorded in system logs.";
+    console.log(`[Email Logged (No Mail Provider Configured)] To: ${recipient} | Subject: ${subject}`);
   }
 
   const newLog: NotificationLog = {
     notificationId: "notif-" + crypto.randomUUID(),
     bookingId,
-    emailTo: to,
+    emailTo: recipient,
     subject,
     body,
     sentAt: new Date().toISOString(),
     priority,
     status,
+    errorMessage: statusMessage,
   };
 
+  if (!dbObj.notifications) {
+    dbObj.notifications = [];
+  }
   dbObj.notifications.unshift(newLog);
   saveDatabase(dbObj);
+
+  return { status, message: statusMessage, notification: newLog };
 }
 
 // Convert time string "HH:MM" to total minutes since midnight
@@ -267,13 +461,16 @@ function isOverlapping(startA: string, durationA: number, startB: string, durati
 // Background checker function
 async function checkPendingBookingsAndNotify() {
   const dbObj = getDatabase();
-  const pendingBookings = dbObj.bookings.filter((b) => b.status === "pending");
+  const pendingBookings = dbObj.bookings.filter((b) => b.status === "pending" && !(b as any).notifiedAdmin);
 
   if (pendingBookings.length === 0) return;
 
-  console.log(`[Background Checker] Found ${pendingBookings.length} pending bookings. Sending high-priority alerts.`);
+  console.log(`[Background Checker] Found ${pendingBookings.length} unnotified pending bookings. Processing alerts.`);
 
   for (const booking of pendingBookings) {
+    (booking as any).notifiedAdmin = true;
+    saveDatabase(dbObj);
+
     const user = dbObj.users.find((u) => u.uid === booking.userId);
     const room = dbObj.rooms.find((r) => r.roomId === booking.roomId);
 
@@ -284,7 +481,11 @@ async function checkPendingBookingsAndNotify() {
     const subject = `[HIGH-PRIORITY ALERT] Booking Request #${booking.bookingId} is Still Pending Approval!`;
     const body = `Attention Admin,\n\nA booking request has been waiting for approval for over 2 minutes.\n\nRoom: ${roomName}\nRequested By: ${userName} (${userEmail})\nDate: ${booking.date}\nTime: ${booking.startTime} (${booking.duration} mins)\nStatus: PENDING\n\nPlease log in to the Meeting Room Portal immediately to approve or reject this request.`;
 
-    await sendEmailNotification(ADMIN_ALERT_EMAIL, subject, body, "High", booking.bookingId);
+    try {
+      await sendEmailNotification(ADMIN_ALERT_EMAIL, subject, body, "High", booking.bookingId);
+    } catch (err: any) {
+      console.log("[Background Checker Note]", err?.message || err);
+    }
   }
 }
 
@@ -356,6 +557,77 @@ async function startServer() {
   // Start background monitoring
   startBackgroundNotificationLoop();
 
+  // ==================== EMAIL & NOTIFICATION ENDPOINTS ====================
+  app.post("/api/send-email", async (req, res) => {
+    const { to, subject, body, priority, bookingId, booking } = req.body;
+    if (!to || !subject || !body) {
+      return res.status(400).json({ error: "Missing required email parameters: to, subject, and body" });
+    }
+
+    const result = await sendEmailNotification(
+      to,
+      subject,
+      body,
+      priority === "High" ? "High" : "Normal",
+      bookingId || "general",
+      booking
+    );
+
+    return res.json(result);
+  });
+
+  app.get("/api/notifications", (req, res) => {
+    const dbObj = getDatabase();
+    return res.json(dbObj.notifications || []);
+  });
+
+  app.post("/api/notify-it-helpdesk", async (req, res) => {
+    const { booking, roomName } = req.body;
+    if (!booking) {
+      return res.status(400).json({ error: "Missing booking parameter" });
+    }
+
+    const emailSubject = `[IT Support Required] ${roomName || "Meeting Room"} on ${booking.date} at ${booking.startTime}`;
+    let guestInfoText = "";
+    if (booking.externalGuests && Array.isArray(booking.externalGuests) && booking.externalGuests.length > 0) {
+      guestInfoText = `• External Guests (${booking.externalGuests.length}):\n` +
+        booking.externalGuests.map((g: any, idx: number) => {
+          let details = `  ${idx + 1}. ${g.name}`;
+          if (g.company) details += ` (${g.company})`;
+          if (g.email) details += ` - Email: ${g.email}`;
+          if (g.phone) details += ` - Phone: ${g.phone}`;
+          return details;
+        }).join("\n") + "\n";
+    } else if (booking.externalName) {
+      guestInfoText = `• External Visitor: ${booking.externalName} (${booking.externalCompany || "N/A"})\n`;
+    }
+
+    const emailBody = `IT SUPPORT & AV SETUP REQUEST\n\n` +
+      `• Date of Meeting: ${booking.date}\n` +
+      `• Time of Meeting: ${booking.startTime} (${booking.duration} mins)\n` +
+      `• Room Name: ${roomName || "N/A"}\n` +
+      `• Host Name: ${booking.bookerName || "N/A"}\n` +
+      `• Host Email: ${booking.bookerEmail || "N/A"}\n` +
+      `• Agenda / Title: ${booking.reason || "N/A"}\n` +
+      `• Meeting Type: ${booking.meetingType || "Internal"}\n` +
+      guestInfoText +
+      `• Action Required: Please prepare IT & AV support prior to meeting start time.`;
+
+    const result = await sendEmailNotification(
+      "supratik@psgroup.in",
+      emailSubject,
+      emailBody,
+      "High",
+      booking.bookingId || "general",
+      {
+        ...booking,
+        roomName: roomName || booking.roomName
+      }
+    );
+
+    return res.json(result);
+  });
+
   // ==================== AUTHENTICATION ENDPOINTS ====================
 
   app.post("/api/auth/register", (req, res) => {
@@ -410,43 +682,22 @@ async function startServer() {
       return res.status(400).json({ error: "Please enter your email and password" });
     }
 
-    // Check against secure server-side Admin credentials first
-    if (
-      (email.toLowerCase() === ADMIN_ID.toLowerCase() || email.toLowerCase() === "admin@psgroup.in") &&
-      password === ADMIN_PASSWORD
-    ) {
-      const token = jwt.sign(
-        { uid: "admin-system", email: "admin@psgroup.in", role: "Admin", name: "PS Group Admin" },
-        JWT_SECRET,
-        { expiresIn: "24h" }
-      );
-      return res.json({
-        token,
-        user: {
-          uid: "admin-system",
-          email: "admin@psgroup.in",
-          name: "PS Group Admin",
-          role: "Admin",
-          isApproved: true,
-        },
-      });
-    }
-
     const dbObj = getDatabase();
-    const user = dbObj.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    const formattedEmail = email.toLowerCase().trim();
+    const user = dbObj.users.find((u) => u.email.toLowerCase() === formattedEmail);
 
     if (!user || user.passwordHash !== hashPassword(password)) {
       return res.status(400).json({ error: "Invalid email or password" });
     }
 
-    // Check approval status
+    // Check approval status dynamically from database
     if (!user.isApproved) {
       return res.status(403).json({
         error: "Your account has not been approved yet. Please wait for an administrator to approve your registration.",
       });
     }
 
-    // Generate JWT token
+    // Generate JWT token with user properties fetched dynamically from database
     const token = jwt.sign(
       { uid: user.uid, email: user.email, role: user.role, name: user.name },
       JWT_SECRET,
@@ -652,15 +903,55 @@ async function startServer() {
     const body = `Dear ${bookerName},\n\nYour meeting room reservation has been successfully booked on a first-come, first-served basis.\n\nRoom: ${room.name}\nDate: ${date}\nTime: ${startTime} (${duration} minutes)\nAttendees: ${attendeesCount || "N/A"}\n\nThank you,\nCorporate Operations`;
 
     // Async trigger email
-    sendEmailNotification(bookerEmail, subject, body, "Normal", newBooking.bookingId).catch((err) => {
-      console.error("Failed to send initial mail:", err);
-    });
+    sendEmailNotification("supratik@psgroup.in", subject, body, "Normal", newBooking.bookingId, {
+      ...newBooking,
+      roomName: room.name,
+      reason: (newBooking as any).reason || subject,
+    }).catch(() => {});
 
     res.status(201).json({
       message: "Room booked successfully! Your reservation is active.",
       booking: newBooking,
     });
   });
+
+  // Cancel reservation endpoints
+  const handleCancelBookingRoute = async (req: any, res: any) => {
+    const { bookingId } = req.params;
+    const dbObj = getDatabase();
+    const bookingIndex = dbObj.bookings.findIndex((b) => b.bookingId === bookingId);
+
+    let booking: any = null;
+    if (bookingIndex !== -1) {
+      dbObj.bookings[bookingIndex].status = "Cancelled";
+      booking = dbObj.bookings[bookingIndex];
+      saveDatabase(dbObj);
+    }
+
+    // Send cancellation notification email
+    const recipient = "supratik@psgroup.in";
+    const subject = `[RESERVATION CANCELLED] Meeting Room Reservation #${bookingId}`;
+    const body = `MEETING ROOM RESERVATION CANCELLED\n\n` +
+      `• Reservation ID: ${bookingId}\n` +
+      `• Date: ${booking?.date || "N/A"}\n` +
+      `• Start Time: ${booking?.startTime || "N/A"}\n` +
+      `• Booker: ${booking?.bookerName || "Employee"} (${booking?.bookerEmail || "N/A"})\n` +
+      `• Reason: ${booking?.reason || "N/A"}\n\n` +
+      `Status: CANCELLED\n` +
+      `This meeting room reservation has been cancelled and the slot is now free for booking.`;
+
+    sendEmailNotification(recipient, subject, body, "Normal", bookingId).catch(() => {});
+
+    return res.json({
+      message: "Meeting room reservation cancelled successfully.",
+      bookingId,
+      status: "Cancelled"
+    });
+  };
+
+  app.post("/api/bookings/:bookingId/cancel", handleCancelBookingRoute);
+  app.put("/api/bookings/:bookingId/cancel", handleCancelBookingRoute);
+  app.delete("/api/bookings/:bookingId", handleCancelBookingRoute);
 
   app.put("/api/bookings/:bookingId/status", authenticateToken, requireAdmin, (req: any, res) => {
     const { bookingId } = req.params;
@@ -719,9 +1010,7 @@ async function startServer() {
     if (requester) {
       const uSubject = `Meeting Room Booking Status: ${status}`;
       const uBody = `Dear ${requester.name},\n\nYour booking request for "${room ? room.name : "Meeting Room"}" has been ${status.toUpperCase()} by the administrator.\n\nDate: ${booking.date}\nTime: ${booking.startTime} (${booking.duration} mins)\n\nThank you,\nCorporate Operations`;
-      sendEmailNotification(requester.email, uSubject, uBody, "Normal", bookingId).catch((err) => {
-        console.error("Failed to send requester email update:", err);
-      });
+      sendEmailNotification(requester.email, uSubject, uBody, "Normal", bookingId).catch(() => {});
     }
 
     res.json(dbObj.bookings[bookingIndex]);
@@ -849,9 +1138,7 @@ async function startServer() {
     if (approved && !previousApproval) {
       const subject = "Your Meeting Room Portal Account has been Approved!";
       const body = `Dear ${targetUser.name},\n\nAn administrator has approved your registration for the Meeting Room Portal.\n\nYou can now log in at ${process.env.APP_URL || "the portal URL"} and start booking corporate meeting rooms.\n\nThank you,\nCorporate Operations`;
-      sendEmailNotification(targetUser.email, subject, body, "Normal", "account-approval").catch((err) => {
-        console.error("Failed to notify approved user:", err);
-      });
+      sendEmailNotification(targetUser.email, subject, body, "Normal", "account-approval").catch(() => {});
     }
 
     res.json({
@@ -945,7 +1232,9 @@ async function startServer() {
         `• Host Email: ${hostEmail}\n` +
         `• Agenda / Title: ${agenda}\n` +
         `• Meeting Type: ${booking.meetingType || "Internal"}\n` +
-        (booking.externalName ? `• Visitor: ${booking.externalName} (${booking.externalCompany || "N/A"})\n` : "") +
+        (booking.externalGuests && Array.isArray(booking.externalGuests) && booking.externalGuests.length > 0
+          ? `• External Guests (${booking.externalGuests.length}):\n` + booking.externalGuests.map((g: any, i: number) => `  ${i + 1}. ${g.name}${g.company ? ` (${g.company})` : ""}${g.phone ? ` - ${g.phone}` : ""}`).join("\n") + "\n"
+          : (booking.externalName ? `• Visitor: ${booking.externalName} (${booking.externalCompany || "N/A"})\n` : "")) +
         `\nNote: Sent directly to IT Helpdesk (ithelpdesk@psgroup.in) with attached iCalendar (.ics) invite format so IT Helpdesk receives pre-meeting reminders.`;
 
       // Log into database

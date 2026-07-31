@@ -25,6 +25,7 @@
     "nodemailer": "^9.0.3",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "resend": "^6.18.1",
     "vite": "^6.2.3"
   },
   "devDependencies": {
