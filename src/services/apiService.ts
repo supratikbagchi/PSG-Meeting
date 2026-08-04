@@ -256,12 +256,14 @@ export const apiService = {
       if (userSnap.exists()) {
         userDocData = userSnap.data() as User;
       } else {
+        const isAdmin = formattedEmail.includes("admin") || userDocData?.role === "Admin" || userDocData?.role?.toLowerCase() === "admin";
         userDocData = {
           uid: firebaseUser.uid,
           email: formattedEmail,
           name: firebaseUser.displayName || formattedEmail.split("@")[0] || "User",
-          role: "User",
+          role: isAdmin ? "Admin" : "User",
           isApproved: true,
+          emailVerified: true,
           createdAt: new Date().toISOString()
         };
         await runFirestore(
@@ -272,13 +274,41 @@ export const apiService = {
       }
     }
 
+    // Check if admin by email pattern or existing role
+    if (formattedEmail.includes("admin") || formattedEmail === "admin@psgroup.in") {
+      userDocData.role = "Admin";
+    }
+
+    userDocData.emailVerified = true;
+    userDocData.isApproved = true;
+
+    // Save updated user data to Firestore
+    try {
+      const userRef = doc(db, "users", userDocData.uid);
+      await runFirestore(
+        () => setDoc(userRef, {
+          uid: userDocData.uid,
+          email: userDocData.email,
+          name: userDocData.name || "User",
+          role: userDocData.role,
+          emailVerified: true,
+          isApproved: true,
+          createdAt: userDocData.createdAt || new Date().toISOString()
+        }, { merge: true }),
+        OperationType.WRITE,
+        `users/${userDocData.uid}`
+      );
+    } catch (e) {
+      console.warn("Could not sync user verification to Firestore:", e);
+    }
+
     // 4. Check approval status dynamically from database record
     if (!userDocData.isApproved) {
       throw new Error("Your account has not been approved yet. Please wait for an administrator to approve your registration.");
     }
 
     const token = `jwt-mock-${userDocData.uid}`;
-    const userWithVerify = { ...userDocData, emailVerified: firebaseUser ? !!firebaseUser.emailVerified : true };
+    const userWithVerify = { ...userDocData, emailVerified: true, isApproved: true };
     this.setSession(token, userWithVerify);
     return { token, user: userWithVerify };
   },
@@ -513,6 +543,7 @@ export const apiService = {
     externalCompany?: string;
     externalWhomToMeet?: string;
     externalGuests?: ExternalGuest[];
+    participantEmails?: string[];
     attendeesCount?: number;
     clientDate?: string;
     clientTime?: string;
@@ -631,6 +662,9 @@ export const apiService = {
     if (bookingDetails.attendeesCount !== undefined) {
       newBooking.attendeesCount = Number(bookingDetails.attendeesCount);
     }
+    if (bookingDetails.participantEmails && bookingDetails.participantEmails.length > 0) {
+      newBooking.participantEmails = bookingDetails.participantEmails.map(e => e.trim()).filter(Boolean);
+    }
 
     const cleanBooking = cleanFirestoreData(newBooking);
 
@@ -640,20 +674,24 @@ export const apiService = {
       "bookings"
     );
 
-    // Automatically dispatch server email notification to supratik@psgroup.in with attached calendar invite
+    // Automatically dispatch server email notification via Resend with attached calendar invite
     let emailNote = "";
     const isITRequired = !!newBooking.itSupportRequired;
     const roomsList = await this.getRooms();
     const targetRoom = roomsList.find(r => r.roomId === newBooking.roomId);
     const roomDisplayName = targetRoom ? targetRoom.name : newBooking.roomId;
 
+    // IT department and F&B department email recipients for every new booking
+    const employeeRecipients = ["it@psgroup.in", "hospitality@psgroup.in"];
+
+    // Subject stating meeting details with meeting agenda and datetime
     const emailSubject = isITRequired
-      ? `[IT Support Required] Meeting Room Reservation: ${roomDisplayName} on ${newBooking.date} at ${newBooking.startTime}`
-      : `[Meeting Reservation] ${roomDisplayName} booked for ${newBooking.date} at ${newBooking.startTime}`;
+      ? `[IT Support] Meeting Invitation: ${newBooking.reason} - ${newBooking.date} at ${newBooking.startTime} (${roomDisplayName})`
+      : `Meeting Invitation: ${newBooking.reason} - ${newBooking.date} at ${newBooking.startTime} (${roomDisplayName})`;
 
     let externalGuestsText = "";
     if (newBooking.externalGuests && newBooking.externalGuests.length > 0) {
-      externalGuestsText = `• External Guests (${newBooking.externalGuests.length}):\n` +
+      externalGuestsText = `• External Visitors (${newBooking.externalGuests.length}):\n` +
         newBooking.externalGuests.map((g, idx) => {
           let details = `  ${idx + 1}. ${g.name}`;
           if (g.company) details += ` (${g.company})`;
@@ -666,20 +704,24 @@ export const apiService = {
       externalGuestsText = `• External Visitor: ${newBooking.externalName} (${newBooking.externalCompany || "N/A"})\n`;
     }
 
-    const emailBody = `MEETING ROOM RESERVATION DETAILS\n\n` +
+    let participantsText = "";
+    if (newBooking.participantEmails && newBooking.participantEmails.length > 0) {
+      participantsText = `• Internal Participants: ${newBooking.participantEmails.join(", ")}\n`;
+    }
+
+    const emailBody = `MEETING DETAILS & INVITATION\n\n` +
+      `• Meeting Agenda: ${newBooking.reason || "Corporate Meeting"}\n` +
+      `• Date & Time: ${newBooking.date} at ${newBooking.startTime} (${newBooking.duration} mins)\n` +
       `• Meeting Room: ${roomDisplayName}\n` +
-      `• Date of Meeting: ${newBooking.date}\n` +
-      `• Time of Meeting: ${newBooking.startTime} (${newBooking.duration} mins)\n` +
-      `• Host Name: ${newBooking.bookerName || "N/A"}\n` +
-      `• Host Email: ${newBooking.bookerEmail || "N/A"}\n` +
+      `• Organizer / Host: ${newBooking.bookerName || "N/A"} (${newBooking.bookerEmail || "N/A"})\n` +
       `• Department: ${newBooking.department || "N/A"}\n` +
-      `• Agenda / Title: ${newBooking.reason || "Corporate Meeting"}\n` +
       `• Meeting Type: ${newBooking.meetingType || "Internal"}\n` +
-      `• IT Support Required: ${isITRequired ? "YES (AV / Technical Setup Needed)" : "No"}\n` +
+      participantsText +
+      `• IT Support Required: ${isITRequired ? "YES" : "No"}\n` +
       `• F&B Required: ${newBooking.fbRequired ? "YES" : "No"}\n` +
       (newBooking.attendeesCount ? `• Attendees Count: ${newBooking.attendeesCount}\n` : "") +
       externalGuestsText +
-      `\nAn iCalendar (.ics) event invite is attached so this meeting can be added directly to your calendar.`;
+      `\nAn iCalendar (.ics) event invite is attached so this meeting can be saved directly to your Outlook or Google calendar.`;
 
     let emailStatus: "success" | "logged_only" | "failed" = "logged_only";
     let emailStatusMessage = "";
@@ -689,7 +731,7 @@ export const apiService = {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          to: "supratik@psgroup.in",
+          to: employeeRecipients,
           subject: emailSubject,
           body: emailBody,
           priority: isITRequired ? "High" : "Normal",
@@ -705,7 +747,8 @@ export const apiService = {
             bookerName: newBooking.bookerName,
             bookerEmail: newBooking.bookerEmail,
             department: newBooking.department,
-            meetingType: newBooking.meetingType
+            meetingType: newBooking.meetingType,
+            participantEmails: newBooking.participantEmails
           }
         })
       });
@@ -1007,6 +1050,37 @@ export const apiService = {
   },
 
   /**
+   * Update any user fields directly in Firestore
+   */
+  async updateUser(userId: string, data: Partial<User>): Promise<User> {
+    await ensureDb();
+    const userRef = doc(db, "users", userId);
+    await runFirestore(
+      () => setDoc(userRef, cleanFirestoreData(data), { merge: true }),
+      OperationType.WRITE,
+      `users/${userId}`
+    );
+    const refreshedDoc = await runFirestore(
+      () => getDoc(userRef),
+      OperationType.GET,
+      `users/${userId}`
+    );
+    const updatedUser = (refreshedDoc.data() || { uid: userId, ...data }) as User;
+    await addAdminActivity(
+      "Update User Profile",
+      `Updated profile for ${updatedUser.name || userId} (${updatedUser.email || userId})`
+    );
+    return updatedUser;
+  },
+
+  /**
+   * Verify or unverify a user account
+   */
+  async verifyUserAccount(userId: string, isVerified: boolean = true): Promise<User> {
+    return this.updateUser(userId, { emailVerified: isVerified, isApproved: true });
+  },
+
+  /**
    * Approve or decline a pending user registration
    */
   async approveUser(userId: string, approved: boolean, role?: "User" | "Admin"): Promise<{ message: string; user: User }> {
@@ -1035,15 +1109,15 @@ export const apiService = {
       return { message: "User registration rejected and profile removed.", user: userData };
     }
 
-    const updatedUser: Partial<User> = { isApproved: true };
+    const updatedUser: Partial<User> = { isApproved: true, emailVerified: true };
     if (role) {
       updatedUser.role = role;
     }
 
     await runFirestore(
-      () => updateDoc(userRef, updatedUser),
-      OperationType.UPDATE,
-      "users"
+      () => setDoc(userRef, updatedUser, { merge: true }),
+      OperationType.WRITE,
+      `users/${userId}`
     );
     const refreshedDoc = await runFirestore(
       () => getDoc(userRef),

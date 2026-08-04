@@ -448,7 +448,7 @@ function buildStructuredEmailDraft(opts: StructuredEmailOptions): { html: string
 }
 
 async function sendEmailNotification(
-  to: string,
+  to: string | string[],
   subject: string,
   body: string,
   priority: "Normal" | "High",
@@ -465,35 +465,52 @@ async function sendEmailNotification(
 
   // List of non-existent or internal aliases that fail recipient lookup on Exchange
   const invalidInternalAliases = [
-    "it@psgroup.in",
     "ithelpdesk@psgroup.in",
-    "admin@psgroup.in",
     "user@psgroup.in",
     "pending@psgroup.in"
   ];
 
-  // Determine valid target recipient email address
-  let recipient = senderUser;
-  if (to && typeof to === "string" && to.trim().includes("@")) {
-    const trimmed = to.trim().toLowerCase();
-    if (
-      !trimmed.includes("example.com") &&
-      !trimmed.includes("company.com") &&
-      !invalidInternalAliases.includes(trimmed)
-    ) {
-      recipient = to.trim();
+  // Determine valid target recipient email addresses
+  let rawList: string[] = [];
+  if (Array.isArray(to)) {
+    rawList = to;
+  } else if (typeof to === "string") {
+    rawList = to.split(",");
+  }
+
+  const validRecipients: string[] = [];
+  for (const item of rawList) {
+    if (item && typeof item === "string" && item.trim().includes("@")) {
+      const trimmed = item.trim();
+      const lower = trimmed.toLowerCase();
+      if (
+        !lower.includes("example.com") &&
+        !lower.includes("company.com") &&
+        !invalidInternalAliases.includes(lower)
+      ) {
+        if (!validRecipients.includes(trimmed)) {
+          validRecipients.push(trimmed);
+        }
+      }
     }
   }
+
+  if (validRecipients.length === 0) {
+    validRecipients.push(senderUser);
+  }
+
+  const primaryRecipient = validRecipients[0];
+  const recipientDisplayString = validRecipients.join(", ");
 
   // Construct structured HTML email template if not explicitly provided
   const htmlBody = customHtml || buildStructuredEmailDraft({
     title: subject.replace(/^\[.*?\]\s*/, ""),
-    badgeText: priority === "High" ? "HIGH PRIORITY" : "NOTICE",
+    badgeText: priority === "High" ? "HIGH PRIORITY" : "MEETING INVITATION",
     badgeBg: priority === "High" ? "#dc2626" : "#2563eb",
     summaryText: body,
     details: [
-      { label: "Notification Subject", value: subject, highlight: true },
-      { label: "Target Recipient", value: recipient },
+      { label: "Meeting Subject", value: subject, highlight: true },
+      { label: "Participants", value: recipientDisplayString },
       { label: "Timestamp", value: new Date().toLocaleString() }
     ],
     noteText: "Sent via PS Group Corporate Meeting Portal Notification Service."
@@ -501,11 +518,7 @@ async function sendEmailNotification(
 
   const mailOptions: any = {
     from: senderUser,
-    to: recipient,
-    envelope: {
-      from: senderUser,
-      to: recipient,
-    },
+    to: validRecipients,
     replyTo: senderUser,
     subject,
     text: body,
@@ -515,7 +528,7 @@ async function sendEmailNotification(
 
   // Attach .ics iCalendar file for calendar invites if booking details exist
   if (bookingData || (bookingId && bookingId !== "general" && bookingId !== "account-approval")) {
-    const icsContent = generateIcsContent(bookingData || { bookingId, reason: subject }, recipient);
+    const icsContent = generateIcsContent(bookingData || { bookingId, reason: subject }, primaryRecipient);
     const icsFilename = `meeting-invite-${bookingId || "booking"}.ics`;
 
     mailOptions.attachments = [
@@ -535,7 +548,7 @@ async function sendEmailNotification(
 
       let resendAttachments: any[] = [];
       if (bookingData || (bookingId && bookingId !== "general" && bookingId !== "account-approval")) {
-        const icsContent = generateIcsContent(bookingData || { bookingId, reason: subject }, recipient);
+        const icsContent = generateIcsContent(bookingData || { bookingId, reason: subject }, primaryRecipient);
         const icsFilename = `meeting-invite-${bookingId || "booking"}.ics`;
         resendAttachments.push({
           filename: icsFilename,
@@ -546,7 +559,7 @@ async function sendEmailNotification(
 
       const resendResponse = await resend.emails.send({
         from: fromAddress,
-        to: [recipient],
+        to: validRecipients,
         subject,
         text: body,
         html: htmlBody,
@@ -558,8 +571,8 @@ async function sendEmailNotification(
       }
 
       status = "success";
-      statusMessage = `Email and Calendar Invite (.ics) delivered via Resend API to ${recipient} (ID: ${resendResponse.data?.id})`;
-      console.log(`[Resend API Success] Sent email to ${recipient} | Resend ID: ${resendResponse.data?.id}`);
+      statusMessage = `Email and Calendar Invite (.ics) delivered via Resend API to ${recipientDisplayString} (ID: ${resendResponse.data?.id})`;
+      console.log(`[Resend API Success] Sent email to ${recipientDisplayString} | Resend ID: ${resendResponse.data?.id}`);
     } catch (resendErr: any) {
       console.error("Resend API Delivery Error:", resendErr?.message || resendErr);
       status = "failed";
@@ -580,8 +593,8 @@ async function sendEmailNotification(
     try {
       await transporter.sendMail(mailOptions);
       status = "success";
-      statusMessage = `Email and Calendar Invite (.ics) successfully sent via SMTP to ${recipient}`;
-      console.log(`[Email & ICS Sent] To: ${recipient} | Subject: ${subject}`);
+      statusMessage = `Email and Calendar Invite (.ics) successfully sent via SMTP to ${recipientDisplayString}`;
+      console.log(`[Email & ICS Sent] To: ${recipientDisplayString} | Subject: ${subject}`);
     } catch (err: any) {
       status = "failed";
       statusMessage = `SMTP Delivery Error: ${err?.message || String(err)}`;
@@ -590,13 +603,13 @@ async function sendEmailNotification(
   } else {
     status = "logged_only";
     statusMessage = "No active mail provider configured (RESEND_API_KEY or SMTP credentials). Email was recorded in system logs.";
-    console.log(`[Email Logged (No Mail Provider Configured)] To: ${recipient} | Subject: ${subject}`);
+    console.log(`[Email Logged (No Mail Provider Configured)] To: ${recipientDisplayString} | Subject: ${subject}`);
   }
 
   const newLog: NotificationLog = {
     notificationId: "notif-" + crypto.randomUUID(),
     bookingId,
-    emailTo: recipient,
+    emailTo: recipientDisplayString,
     subject,
     body,
     sentAt: new Date().toISOString(),
@@ -1129,8 +1142,9 @@ async function startServer() {
       noteText: "An iCalendar (.ics) event file is attached. Opening the attachment will automatically save this reservation to your Outlook or Google calendar."
     });
 
-    // Async trigger email
-    sendEmailNotification("supratik@psgroup.in", subject, confirmDraft.text, "Normal", newBooking.bookingId, {
+    // Async trigger email to IT (it@psgroup.in) and F&B (hospitality@psgroup.in)
+    const bookingRecipients = ["it@psgroup.in", "hospitality@psgroup.in"];
+    sendEmailNotification(bookingRecipients, subject, confirmDraft.text, "Normal", newBooking.bookingId, {
       ...newBooking,
       roomName: room.name,
       reason: (newBooking as any).reason || subject,

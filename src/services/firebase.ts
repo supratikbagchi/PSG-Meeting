@@ -166,6 +166,7 @@ export async function seedFirestoreIfNeeded(): Promise<void> {
         name: "PS Group Admin",
         role: "Admin",
         isApproved: true,
+        emailVerified: true,
         createdAt: "2026-07-05T10:02:28.336Z"
       },
       {
@@ -176,6 +177,7 @@ export async function seedFirestoreIfNeeded(): Promise<void> {
         department: "Facility and Operations",
         role: "Admin",
         isApproved: true,
+        emailVerified: true,
         createdAt: "2026-07-05T10:02:28.336Z"
       },
       {
@@ -186,6 +188,7 @@ export async function seedFirestoreIfNeeded(): Promise<void> {
         department: "Facility and Operations",
         role: "Admin",
         isApproved: true,
+        emailVerified: true,
         createdAt: "2026-07-05T10:02:28.336Z"
       },
       {
@@ -196,6 +199,7 @@ export async function seedFirestoreIfNeeded(): Promise<void> {
         department: "Enterprise Technology & Automation",
         role: "Admin",
         isApproved: true,
+        emailVerified: true,
         createdAt: "2026-07-05T10:02:28.336Z"
       },
       {
@@ -203,8 +207,21 @@ export async function seedFirestoreIfNeeded(): Promise<void> {
         email: "user@psgroup.in",
         passwordHash: userHash,
         name: "Supratik Bagchi",
+        department: "Secretarial",
         role: "User",
         isApproved: true,
+        emailVerified: true,
+        createdAt: "2026-07-05T10:02:28.336Z"
+      },
+      {
+        uid: "user-supratik",
+        email: "supratik@psgroup.in",
+        passwordHash: userHash,
+        name: "Supratik Bagchi",
+        department: "Secretarial",
+        role: "User",
+        isApproved: true,
+        emailVerified: true,
         createdAt: "2026-07-05T10:02:28.336Z"
       },
       {
@@ -214,6 +231,7 @@ export async function seedFirestoreIfNeeded(): Promise<void> {
         name: "John Doe",
         role: "User",
         isApproved: false,
+        emailVerified: false,
         createdAt: "2026-07-05T10:02:28.337Z"
       }
     ];

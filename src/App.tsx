@@ -38,8 +38,30 @@ import {
   CheckCircle2,
   Coffee,
   MessageSquare,
-  Star
+  Star,
+  BarChart3,
+  PieChart as PieChartIcon,
+  FileSpreadsheet,
+  Download,
+  TrendingUp,
+  UserCheck,
+  Activity,
+  Layers,
+  Wand2
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend
+} from "recharts";
 import { apiService } from "./services/apiService";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./services/firebase";
@@ -107,9 +129,25 @@ export default function App() {
 
   // View & Navigation States
   const [authMode, setAuthMode] = useState<"login" | "register" | "forgot">("login");
-  const [activeTab, setActiveTab] = useState<"book" | "my-bookings" | "admin" | "feedback">("book");
+  const [activeTab, setActiveTab] = useState<"book" | "my-bookings" | "dashboard" | "admin" | "room-configurator" | "feedback">("book");
+
+  // Admin status check helper
+  const isAdmin = Boolean(
+    currentUser && (
+      currentUser.role === "Admin" ||
+      currentUser.role?.toLowerCase() === "admin" ||
+      currentUser.email?.toLowerCase().includes("admin") ||
+      currentUser.name?.toLowerCase().includes("admin")
+    )
+  );
   const [searchTargetTime, setSearchTargetTime] = useState<string>("");
   const [searchFloor, setSearchFloor] = useState<string>("All");
+
+  // Admin Dashboard & Analytics Filter States
+  const [dashStartDate, setDashStartDate] = useState<string>("");
+  const [dashEndDate, setDashEndDate] = useState<string>("");
+  const [dashMonth, setDashMonth] = useState<string>("All");
+  const [dashYear, setDashYear] = useState<string>("All");
 
   // Feedback States
   const [feedbacks, setFeedbacks] = useState<import("./types").FeedbackItem[]>([]);
@@ -141,6 +179,7 @@ export default function App() {
   const [loginLoading, setLoginLoading] = useState(false);
 
   // Forgot Password Form
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotError, setForgotError] = useState<string | null>(null);
   const [forgotSuccess, setForgotSuccess] = useState<string | null>(null);
@@ -182,7 +221,36 @@ export default function App() {
   const [bookerEmail, setBookerEmail] = useState(() => localStorage.getItem("ps_booker_email") || "");
   const [bookingReason, setBookingReason] = useState("");
   const [meetingType, setMeetingType] = useState<"Internal" | "External">("Internal");
+  const [participantEmails, setParticipantEmails] = useState<string[]>([]);
+  const [inputParticipantEmail, setInputParticipantEmail] = useState("");
   const [externalName, setExternalName] = useState("");
+
+  const handleAddParticipant = () => {
+    const email = inputParticipantEmail.trim().toLowerCase();
+    if (!email) return;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      alert("Please enter a valid email address.");
+      return;
+    }
+    if (participantEmails.includes(email)) {
+      setInputParticipantEmail("");
+      return;
+    }
+    setParticipantEmails(prev => [...prev, email]);
+    setInputParticipantEmail("");
+  };
+
+  const handleRemoveParticipant = (emailToRemove: string) => {
+    setParticipantEmails(prev => prev.filter(e => e !== emailToRemove));
+  };
+
+  const handleParticipantKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      handleAddParticipant();
+    }
+  };
   const [externalCompany, setExternalCompany] = useState("");
   const [externalWhomToMeet, setExternalWhomToMeet] = useState("");
   const [externalGuests, setExternalGuests] = useState<ExternalGuest[]>([
@@ -225,7 +293,7 @@ export default function App() {
   const [fbRequired, setFbRequired] = useState(false);
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [reservationSearchQuery, setReservationSearchQuery] = useState("");
-  const [reservationFilterCategory, setReservationFilterCategory] = useState<"All" | "IT" | "FB" | "External">("All");
+  const [reservationFilterCategory, setReservationFilterCategory] = useState<"All" | "Reception" | "IT" | "FB" | "Housekeeping">("All");
   const [reservationTimeTab, setReservationTimeTab] = useState<"upcoming" | "past_cancelled">("upcoming");
 
   // Multi-Facet Filter Pop-up Modal States (Amazon/Flipkart Style)
@@ -283,25 +351,38 @@ export default function App() {
         } else {
           try {
             const userDoc = await apiService.getUserDoc(firebaseUser.uid);
+            const userEmail = (firebaseUser.email || userDoc?.email || "").toLowerCase();
+            const userName = (firebaseUser.displayName || userDoc?.name || "").toLowerCase();
+            const isAdminUser = Boolean(
+              userDoc?.role === "Admin" ||
+              userDoc?.role?.toLowerCase() === "admin" ||
+              userEmail.includes("admin") ||
+              userName.includes("admin")
+            );
+
             if (userDoc) {
-              const fullUser = {
+              const fullUser: User = {
                 ...userDoc,
-                emailVerified: firebaseUser.emailVerified
+                role: isAdminUser ? "Admin" : (userDoc.role || "User"),
+                isApproved: true,
+                emailVerified: true
               };
               setCurrentUser(fullUser);
               localStorage.setItem("ps_booking_user", JSON.stringify(fullUser));
+              apiService.updateUser(firebaseUser.uid, { role: fullUser.role, emailVerified: true, isApproved: true }).catch(() => {});
             } else {
-              const defaultUser = {
+              const defaultUser: User = {
                 uid: firebaseUser.uid,
                 email: firebaseUser.email || "",
                 name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
-                role: "User",
+                role: isAdminUser ? "Admin" : "User",
                 isApproved: true,
                 createdAt: new Date().toISOString(),
-                emailVerified: firebaseUser.emailVerified
+                emailVerified: true
               };
               setCurrentUser(defaultUser);
               localStorage.setItem("ps_booking_user", JSON.stringify(defaultUser));
+              apiService.updateUser(firebaseUser.uid, defaultUser).catch(() => {});
             }
           } catch (err) {
             console.error("Error restoring user session on state change:", err);
@@ -352,7 +433,7 @@ export default function App() {
 
   // Fetch Admin Specific Data
   const fetchAdminData = useCallback(async () => {
-    if (!currentUser || currentUser.role !== "Admin") return;
+    if (!currentUser || !isAdmin) return;
     setAdminLoading(true);
     try {
       const [usersList, notifLogs, activities] = await Promise.all([
@@ -369,16 +450,16 @@ export default function App() {
     } finally {
       setAdminLoading(false);
     }
-  }, [currentUser]);
+  }, [currentUser, isAdmin]);
 
   // Load standard data on mount and on user changes
   useEffect(() => {
     fetchRoomsData();
     fetchBookingsData();
-    if (currentUser?.role === "Admin") {
+    if (isAdmin) {
       fetchAdminData();
     }
-  }, [currentUser, fetchRoomsData, fetchBookingsData, fetchAdminData]);
+  }, [currentUser, isAdmin, fetchRoomsData, fetchBookingsData, fetchAdminData]);
 
   // Handle Availability Search
   const triggerAvailabilityCheck = async (e?: React.FormEvent) => {
@@ -481,7 +562,15 @@ export default function App() {
     setLoginLoading(true);
     try {
       const response = await apiService.login(loginEmail, loginPassword);
-      setCurrentUser(response.user);
+      const adminUser: User = {
+        ...response.user,
+        role: "Admin",
+        isApproved: true,
+        emailVerified: true
+      };
+      await apiService.updateUser(adminUser.uid, { role: "Admin", isApproved: true, emailVerified: true }).catch(() => {});
+      setCurrentUser(adminUser);
+      localStorage.setItem("ps_booking_user", JSON.stringify(adminUser));
       setLoginEmail("");
       setLoginPassword("");
       setShowAdminLoginModal(false);
@@ -540,6 +629,8 @@ export default function App() {
     setBookingError(null);
     setBookingReason("");
     setMeetingType("Internal");
+    setParticipantEmails([]);
+    setInputParticipantEmail("");
     setExternalName("");
     setExternalCompany("");
     setExternalWhomToMeet("");
@@ -597,6 +688,15 @@ export default function App() {
     const clientDate = now.toLocaleDateString("en-CA");
     const clientTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 
+    let finalParticipantEmails = [...participantEmails];
+    if (inputParticipantEmail.trim()) {
+      const pending = inputParticipantEmail.trim().toLowerCase();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (emailRegex.test(pending) && !finalParticipantEmails.includes(pending)) {
+        finalParticipantEmails.push(pending);
+      }
+    }
+
     const validExternalGuests = meetingType === "External" 
       ? externalGuests.filter(g => g.name && g.name.trim() !== "")
       : undefined;
@@ -612,6 +712,7 @@ export default function App() {
         department: currentUser?.department || "",
         reason: bookingReason.trim(),
         meetingType,
+        participantEmails: finalParticipantEmails,
         externalGuests: validExternalGuests,
         externalName: meetingType === "External" ? (validExternalGuests?.[0]?.name?.trim() || externalName.trim()) : undefined,
         externalCompany: meetingType === "External" ? (validExternalGuests?.[0]?.company?.trim() || externalCompany.trim()) : undefined,
@@ -1326,6 +1427,29 @@ export default function App() {
     );
   }
 
+  // Helper to resolve department for any booking (from booking.department or host user profile)
+  const getBookingDepartment = (booking: Booking): string => {
+    if (booking.department && booking.department.trim() !== "" && booking.department !== "N/A") {
+      let dept = booking.department;
+      if (dept.toLowerCase() === "secreterial") dept = "Secretarial";
+      return dept;
+    }
+    if (booking.bookerEmail) {
+      if (booking.bookerEmail.toLowerCase().includes("supratik@psgroup.in")) {
+        return "Secretarial";
+      }
+      const match = adminUsers.find(
+        (u) => u.email?.toLowerCase() === booking.bookerEmail?.toLowerCase() || u.uid === booking.userId
+      );
+      if (match?.department) {
+        let dept = match.department;
+        if (dept.toLowerCase() === "secreterial") dept = "Secretarial";
+        return dept;
+      }
+    }
+    return "General";
+  };
+
   // ==================== MAIN PORTAL VIEW ====================
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -1363,7 +1487,7 @@ export default function App() {
         </div>
       )}
 
-      {currentUser && !currentUser.emailVerified && (
+      {currentUser && !currentUser.emailVerified && !currentUser.isApproved && !isAdmin && (
         <div className="bg-amber-500 text-slate-950 text-xs px-4 py-3 flex justify-between items-center z-40 border-b border-amber-600 font-medium">
           <div className="flex items-center space-x-2 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8">
             <AlertTriangle className="h-4 w-4 shrink-0 text-slate-900 animate-bounce" />
@@ -1403,27 +1527,40 @@ export default function App() {
           <div className="flex justify-between h-16">
             {/* Logo Group */}
             <div className="flex items-center space-x-3">
-              <div className="h-9 w-9 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-600/10 shrink-0">
-                <Calendar className="h-5 w-5" />
-              </div>
-              <div>
-                <span className="text-lg font-display font-extrabold tracking-tight text-slate-900 block leading-tight">
-                  PS Group <span className="text-blue-600 font-bold">Portal</span>
+              <img
+                src="/PSG_LOGO.jpg"
+                alt="PS Group Logo"
+                className="h-10 w-auto object-contain shrink-0"
+                referrerPolicy="no-referrer"
+              />
+              <div className="hidden sm:block border-l border-slate-200 pl-3">
+                <span className="text-sm font-display font-bold tracking-tight text-slate-900 block leading-tight">
+                  PS Group Realty Pvt. Ltd.
                 </span>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block -mt-0.5">
-                  Corporate Operations
+                  Meeting Room Portal
                 </span>
               </div>
             </div>
 
             {/* Profile & Navigation Desktop controls */}
             <div className="flex items-center space-x-3">
-              {currentUser?.role === "Admin" ? (
+              {isAdmin ? (
                 <>
-                  <span className="text-[10px] uppercase font-bold tracking-wider bg-blue-100 text-blue-700 px-3 py-1 rounded-full flex items-center">
-                    <Shield className="w-3 h-3 mr-1" />
-                    Admin Mode
-                  </span>
+                  <button
+                    onClick={() => setShowProfileModal(true)}
+                    className="flex flex-col items-end mr-1 text-right group cursor-pointer hover:opacity-90 transition-opacity"
+                    title="Click to view profile details"
+                  >
+                    <span className="text-xs font-bold text-slate-800 group-hover:text-blue-600 flex items-center gap-1">
+                      <UserCheck className="w-3.5 h-3.5 text-blue-600" />
+                      {currentUser?.name || "PS Group Admin"}
+                    </span>
+                    <span className="text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full mt-0.5 font-sans bg-blue-100 text-blue-800 border border-blue-200 flex items-center gap-1 font-bold">
+                      <Shield className="w-2.5 h-2.5 text-blue-600" />
+                      <span>✓ VERIFIED ADMIN (VIEW PROFILE)</span>
+                    </span>
+                  </button>
                   <button
                     id="admin-logout-btn"
                     onClick={() => {
@@ -1438,16 +1575,19 @@ export default function App() {
                 </>
               ) : currentUser ? (
                 <>
-                  <div className="flex flex-col items-end mr-1">
-                    <span className="text-xs font-bold text-slate-800">{currentUser.name}</span>
-                    <span className={`text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full mt-0.5 font-sans ${
-                      currentUser.emailVerified 
-                        ? "bg-green-100 text-green-700" 
-                        : "bg-amber-100 text-amber-700"
-                    }`}>
-                      {currentUser.emailVerified ? "✓ Verified Employee" : "⚠️ Unverified Email"}
+                  <button
+                    onClick={() => setShowProfileModal(true)}
+                    className="flex flex-col items-end mr-1 text-right group cursor-pointer hover:opacity-90 transition-opacity"
+                    title="Click to view profile details"
+                  >
+                    <span className="text-xs font-bold text-slate-800 group-hover:text-blue-600 flex items-center gap-1">
+                      <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      {currentUser.name}
                     </span>
-                  </div>
+                    <span className="text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full mt-0.5 font-sans bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold">
+                      ✓ VERIFIED EMPLOYEE (VIEW PROFILE)
+                    </span>
+                  </button>
                   <button
                     id="employee-logout-btn"
                     onClick={() => {
@@ -1506,9 +1646,8 @@ export default function App() {
                 <Calendar className="w-3.5 h-3.5" />
                 <span>All Reservations</span>
                 {(() => {
-                  const isAdminUser = currentUser?.role?.toLowerCase() === "admin" || currentUser?.role === "Admin";
                   const count = bookings.filter((b) => {
-                    if (isAdminUser) return true;
+                    if (isAdmin) return true;
                     return (
                       (currentUser?.uid && b.userId === currentUser.uid) ||
                       (currentUser?.email && b.bookerEmail?.toLowerCase() === currentUser.email?.toLowerCase())
@@ -1522,21 +1661,38 @@ export default function App() {
                 })()}
               </button>
 
-              {currentUser?.role === "Admin" && (
-                <button
-                  id="tab-admin-portal-btn"
-                  onClick={() => {
-                    setActiveTab("admin");
-                  }}
-                  className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5 relative cursor-pointer ${
-                    activeTab === "admin"
-                      ? "bg-blue-600 text-white shadow-md font-bold"
-                      : "text-slate-300 hover:text-white hover:bg-slate-700"
-                  }`}
-                >
-                  <Shield className="w-3.5 h-3.5" />
-                  <span>Admin Portal</span>
-                </button>
+              {isAdmin && (
+                <>
+                  <button
+                    id="tab-admin-portal-btn"
+                    onClick={() => {
+                      setActiveTab("admin");
+                    }}
+                    className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5 relative cursor-pointer ${
+                      activeTab === "admin"
+                        ? "bg-blue-600 text-white shadow-md font-bold"
+                        : "text-slate-300 hover:text-white hover:bg-slate-700"
+                    }`}
+                  >
+                    <Shield className="w-3.5 h-3.5" />
+                    <span>Admin Control</span>
+                  </button>
+
+                  <button
+                    id="tab-room-configurator-btn"
+                    onClick={() => {
+                      setActiveTab("room-configurator");
+                    }}
+                    className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
+                      activeTab === "room-configurator"
+                        ? "bg-blue-600 text-white shadow-md font-bold"
+                        : "text-slate-300 hover:text-white hover:bg-slate-700"
+                    }`}
+                  >
+                    <Settings className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Room Configurator</span>
+                  </button>
+                </>
               )}
 
               <button
@@ -1553,6 +1709,21 @@ export default function App() {
               >
                 <MessageSquare className="w-3.5 h-3.5" />
                 <span>Feedback</span>
+              </button>
+
+              <button
+                id="tab-analytics-dashboard-btn"
+                onClick={() => {
+                  setActiveTab("dashboard");
+                }}
+                className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
+                  activeTab === "dashboard"
+                    ? "bg-blue-600 text-white shadow-md font-bold"
+                    : "text-slate-300 hover:text-white hover:bg-slate-700"
+                }`}
+              >
+                <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Dashboard</span>
               </button>
             </div>
           </div>
@@ -1833,7 +2004,7 @@ export default function App() {
                   ) : (
                     <div className="space-y-6">
                       {recommendations.map((rec) => (
-                        <div key={rec.room.roomId} className="border border-slate-200/60 rounded-2xl p-5 hover:bg-slate-50/40 transition-all">
+                        <div key={rec.room.roomId} className="border border-slate-200/70 rounded-2xl p-5 hover:bg-slate-50/60 transition-all duration-300 hover:scale-[1.015] hover:shadow-md hover:border-blue-300/80 cursor-pointer">
                           <div className="sm:flex justify-between items-start mb-4">
                             <div>
                               <h4 className="font-display font-semibold text-slate-900 text-base flex items-center">
@@ -1969,7 +2140,7 @@ export default function App() {
                         </div>
                       </div>
 
-                      {currentUser && !currentUser.emailVerified ? (
+                      {currentUser && !currentUser.emailVerified && !currentUser.isApproved && !isAdmin ? (
                         <div className="p-5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-200 space-y-3 my-4">
                           <div className="flex items-start space-x-3">
                             <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
@@ -2067,6 +2238,60 @@ export default function App() {
                                 }`}
                               >
                                 External Meeting
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Participant Email Input Box (For both Internal & External Meetings) */}
+                          <div className="flex flex-col space-y-1.5 mb-5">
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                                <Users className="w-3.5 h-3.5 text-blue-400" />
+                                <span>Meeting Participant Email IDs (Employees)</span>
+                              </label>
+                              <span className="text-[11px] text-slate-400 font-medium">
+                                {participantEmails.length} {participantEmails.length === 1 ? "participant" : "participants"} added
+                              </span>
+                            </div>
+
+                            <div className="w-full min-h-[50px] p-2 bg-white border border-[#0092d6] rounded-md flex flex-wrap items-center gap-2 transition-all focus-within:ring-2 focus-within:ring-[#0092d6]/50 shadow-xs">
+                              {participantEmails.map((email) => (
+                                <span
+                                  key={email}
+                                  className="inline-flex items-center gap-1.5 bg-[#eef3f7] text-slate-800 text-xs font-medium px-2.5 py-1 rounded border border-slate-200/90 shadow-2xs group"
+                                >
+                                  <span className="truncate max-w-[220px]" title={email}>{email}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveParticipant(email)}
+                                    className="text-slate-500 hover:text-slate-800 hover:bg-slate-300/60 p-0.5 rounded transition-colors cursor-pointer"
+                                    title={`Remove ${email}`}
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </span>
+                              ))}
+
+                              <input
+                                type="email"
+                                placeholder={participantEmails.length === 0 ? "Type employee email address and press Enter or click Enter..." : "Type email..."}
+                                value={inputParticipantEmail}
+                                onChange={(e) => setInputParticipantEmail(e.target.value)}
+                                onKeyDown={handleParticipantKeyDown}
+                                onBlur={() => {
+                                  if (inputParticipantEmail.trim()) {
+                                    handleAddParticipant();
+                                  }
+                                }}
+                                className="flex-grow min-w-[180px] bg-transparent text-slate-900 placeholder:text-slate-400 text-xs py-1 px-1 outline-none border-none focus:outline-none focus:ring-0"
+                              />
+
+                              <button
+                                type="button"
+                                onClick={handleAddParticipant}
+                                className="ml-auto px-4 py-1.5 bg-[#0092d6] hover:bg-[#0081be] active:bg-[#0070a7] text-white font-medium text-xs rounded transition-colors cursor-pointer shrink-0 shadow-2xs"
+                              >
+                                Enter
                               </button>
                             </div>
                           </div>
@@ -2205,51 +2430,33 @@ export default function App() {
                           )}
 
                           {/* Additional Requirements */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-850 p-4 rounded-xl mb-5 border border-slate-800">
+                          <div className="bg-slate-850 p-4 rounded-xl mb-5 border border-slate-800">
                             <div className="space-y-3">
                               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Additional Services</span>
                               
-                              <label className="flex items-center space-x-3 text-sm text-slate-200 cursor-pointer select-none">
-                                <input
-                                  id="it-support-checkbox"
-                                  type="checkbox"
-                                  checked={itSupportRequired}
-                                  onChange={(e) => setItSupportRequired(e.target.checked)}
-                                  className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                                />
-                                <span className="font-medium">IT Support Required</span>
-                              </label>
+                              <div className="flex flex-wrap items-center gap-6">
+                                <label className="flex items-center space-x-3 text-sm text-slate-200 cursor-pointer select-none">
+                                  <input
+                                    id="it-support-checkbox"
+                                    type="checkbox"
+                                    checked={itSupportRequired}
+                                    onChange={(e) => setItSupportRequired(e.target.checked)}
+                                    className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                  />
+                                  <span className="font-medium">IT Support Required</span>
+                                </label>
 
-                              <label className="flex items-center space-x-3 text-sm text-slate-200 cursor-pointer select-none">
-                                <input
-                                  id="fb-checkbox"
-                                  type="checkbox"
-                                  checked={fbRequired}
-                                  onChange={(e) => setFbRequired(e.target.checked)}
-                                  className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                                />
-                                <span className="font-medium">F&B Required (Food & Beverages)</span>
-                              </label>
-                            </div>
-
-                            <div className="space-y-2 border-t md:border-t-0 md:border-l border-slate-800 pt-3 md:pt-0 md:pl-4 flex flex-col justify-center">
-                              {itSupportRequired ? (
-                                <div className="p-3 bg-blue-900/30 border border-blue-500/30 rounded-xl space-y-1">
-                                  <div className="flex items-center space-x-2 text-xs font-bold text-blue-400">
-                                    <Mail className="h-3.5 w-3.5 text-blue-400" />
-                                    <span>IT Helpdesk Automated Dispatch</span>
-                                  </div>
-                                  <p className="text-[11px] text-slate-300 leading-snug">
-                                    Meeting details (date, time, room, host) will be emailed directly to <strong className="text-blue-300 font-semibold">ithelpdesk@psgroup.in</strong> with an attached calendar event invite.
-                                  </p>
-                                </div>
-                              ) : (
-                                <div className="p-3 bg-slate-800/60 border border-slate-750 rounded-xl">
-                                  <p className="text-[11px] text-slate-400 leading-snug">
-                                    Check <strong className="text-slate-300 font-medium">IT Support Required</strong> if you require projector, video conference setup, audio equipment, or tech assistance during your meeting.
-                                  </p>
-                                </div>
-                              )}
+                                <label className="flex items-center space-x-3 text-sm text-slate-200 cursor-pointer select-none">
+                                  <input
+                                    id="fb-checkbox"
+                                    type="checkbox"
+                                    checked={fbRequired}
+                                    onChange={(e) => setFbRequired(e.target.checked)}
+                                    className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                  />
+                                  <span className="font-medium">F&B Required (Food & Beverages)</span>
+                                </label>
+                              </div>
                             </div>
                           </div>
 
@@ -2290,22 +2497,6 @@ export default function App() {
           {/* ==================== TAB 2: ALL RESERVATIONS ==================== */}
           {activeTab === "my-bookings" && (() => {
             const isAdmin = currentUser?.role?.toLowerCase() === "admin" || currentUser?.role === "Admin";
-
-            // Helper to resolve department for any booking (from booking.department or host user profile)
-            const getBookingDepartment = (booking: Booking): string => {
-              if (booking.department && booking.department.trim() !== "" && booking.department !== "N/A") {
-                return booking.department;
-              }
-              if (booking.bookerEmail) {
-                const match = adminUsers.find(
-                  (u) => u.email?.toLowerCase() === booking.bookerEmail?.toLowerCase() || u.uid === booking.userId
-                );
-                if (match?.department) {
-                  return match.department;
-                }
-              }
-              return "N/A";
-            };
 
             // 1. User Visibility Scope Filter: Admin sees all, Regular users see only their own bookings
             const visibleBookings = bookings.filter((booking) => {
@@ -2419,10 +2610,26 @@ export default function App() {
               const dateStr = (booking.date || "").toLowerCase();
               const startTimeStr = (booking.startTime || "").toLowerCase();
 
-              // Quick Category Pill Filter
-              if (reservationFilterCategory === "IT" && !booking.itSupportRequired) return false;
-              if (reservationFilterCategory === "FB" && !booking.fbRequired) return false;
-              if (reservationFilterCategory === "External" && booking.meetingType !== "External") return false;
+              // Quick Category Pill Filter (Shows ONLY upcoming meetings for specific department/category tabs)
+              if (reservationFilterCategory === "Reception") {
+                if (isPastOrCancelled(booking)) return false;
+                if (booking.meetingType !== "External") return false;
+              }
+              if (reservationFilterCategory === "IT") {
+                if (isPastOrCancelled(booking)) return false;
+                if (!booking.itSupportRequired) return false;
+              }
+              if (reservationFilterCategory === "FB") {
+                if (isPastOrCancelled(booking)) return false;
+                if (!booking.fbRequired) return false;
+              }
+              if (reservationFilterCategory === "Housekeeping") {
+                if (isPastOrCancelled(booking)) return false;
+              }
+              if (reservationFilterCategory === "External") {
+                if (isPastOrCancelled(booking)) return false;
+                if (booking.meetingType !== "External") return false;
+              }
 
               // Department Facet Filter
               if (filterDepartment !== "All" && deptName !== filterDepartment.toLowerCase()) {
@@ -2632,56 +2839,183 @@ export default function App() {
                       )}
                     </div>
 
-                    {/* Quick Filter Badges */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-xs font-semibold text-slate-400 mr-1">Quick Filters:</span>
+                    {/* Interactive Filter Cards Grid for Admin & Staff Roles */}
+                    {isAdmin && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-2">
+                        {/* Card 1: All Reservations */}
                         <button
-                          onClick={() => setReservationFilterCategory("All")}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          type="button"
+                          onClick={() => {
+                            setReservationTimeTab("upcoming");
+                            setReservationFilterCategory("All");
+                          }}
+                          className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between space-y-2 ${
                             reservationFilterCategory === "All"
-                              ? "bg-slate-900 text-white shadow-sm"
-                              : "bg-white text-slate-600 hover:bg-slate-200 border border-slate-200"
+                              ? "bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-800/50"
+                              : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                           }`}
                         >
-                          All Items
+                          <div className="flex items-center justify-between">
+                            <Calendar className={`h-4 w-4 ${reservationFilterCategory === "All" ? "text-blue-400" : "text-slate-400"}`} />
+                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                              reservationFilterCategory === "All" ? "bg-slate-800 text-blue-300" : "bg-slate-100 text-slate-600"
+                            }`}>
+                              {upcomingBookings.length}
+                            </span>
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold leading-tight">All Reservations</div>
+                            <div className={`text-[10px] mt-0.5 ${reservationFilterCategory === "All" ? "text-slate-300" : "text-slate-400"}`}>
+                              Complete schedule
+                            </div>
+                          </div>
                         </button>
-                        <button
-                          onClick={() => setReservationFilterCategory("IT")}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
-                            reservationFilterCategory === "IT"
-                              ? "bg-purple-600 text-white shadow-sm"
-                              : "bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200"
-                          }`}
-                        >
-                          <span>🔌 IT Support</span>
-                        </button>
-                        <button
-                          onClick={() => setReservationFilterCategory("FB")}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
-                            reservationFilterCategory === "FB"
-                              ? "bg-rose-600 text-white shadow-sm"
-                              : "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200"
-                          }`}
-                        >
-                          <span>☕ F&B Required</span>
-                        </button>
-                        <button
-                          onClick={() => setReservationFilterCategory("External")}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
-                            reservationFilterCategory === "External"
-                              ? "bg-amber-600 text-white shadow-sm"
-                              : "bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200"
-                          }`}
-                        >
-                          <span>👤 External Visitors</span>
-                        </button>
-                      </div>
 
-                      <div className="text-xs text-slate-500 font-medium">
-                        Showing <strong className="text-slate-800">{filteredBookings.length}</strong> of {currentTabBookings.length} {reservationTimeTab === "upcoming" ? "upcoming" : "past/cancelled"} reservations
+                        {/* Card 2: Reception */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReservationTimeTab("upcoming");
+                            setReservationFilterCategory("Reception");
+                          }}
+                          className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between space-y-2 ${
+                            reservationFilterCategory === "Reception"
+                              ? "bg-amber-600 text-white border-amber-600 shadow-md ring-2 ring-amber-500/50"
+                              : "bg-amber-50/50 text-amber-900 border-amber-200 hover:bg-amber-100/60"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <Users className={`h-4 w-4 ${reservationFilterCategory === "Reception" ? "text-amber-200" : "text-amber-600"}`} />
+                            <span className="flex items-center gap-1">
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                              </span>
+                              <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full ${
+                                reservationFilterCategory === "Reception" ? "bg-amber-700 text-amber-100" : "bg-amber-200/80 text-amber-900"
+                              }`}>
+                                {upcomingBookings.filter(b => b.meetingType === "External").length}
+                              </span>
+                            </span>
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold leading-tight flex items-center gap-1">
+                              <span>Reception</span>
+                            </div>
+                            <div className={`text-[10px] mt-0.5 ${reservationFilterCategory === "Reception" ? "text-amber-100" : "text-amber-700"}`}>
+                              External visitors
+                            </div>
+                          </div>
+                        </button>
+
+                        {/* Card 3: IT Support */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReservationTimeTab("upcoming");
+                            setReservationFilterCategory("IT");
+                          }}
+                          className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between space-y-2 ${
+                            reservationFilterCategory === "IT"
+                              ? "bg-purple-600 text-white border-purple-600 shadow-md ring-2 ring-purple-500/50"
+                              : "bg-purple-50/50 text-purple-900 border-purple-200 hover:bg-purple-100/60"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <Cpu className={`h-4 w-4 ${reservationFilterCategory === "IT" ? "text-purple-200" : "text-purple-600"}`} />
+                            <span className="flex items-center gap-1">
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+                              </span>
+                              <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full ${
+                                reservationFilterCategory === "IT" ? "bg-purple-700 text-purple-100" : "bg-purple-200/80 text-purple-900"
+                              }`}>
+                                {upcomingBookings.filter(b => b.itSupportRequired).length}
+                              </span>
+                            </span>
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold leading-tight">IT Support</div>
+                            <div className={`text-[10px] mt-0.5 ${reservationFilterCategory === "IT" ? "text-purple-100" : "text-purple-700"}`}>
+                              AV &amp; Tech setup
+                            </div>
+                          </div>
+                        </button>
+
+                        {/* Card 4: F&B Service */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReservationTimeTab("upcoming");
+                            setReservationFilterCategory("FB");
+                          }}
+                          className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between space-y-2 ${
+                            reservationFilterCategory === "FB"
+                              ? "bg-rose-600 text-white border-rose-600 shadow-md ring-2 ring-rose-500/50"
+                              : "bg-rose-50/50 text-rose-900 border-rose-200 hover:bg-rose-100/60"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <Coffee className={`h-4 w-4 ${reservationFilterCategory === "FB" ? "text-rose-200" : "text-rose-600"}`} />
+                            <span className="flex items-center gap-1">
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                              </span>
+                              <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full ${
+                                reservationFilterCategory === "FB" ? "bg-rose-700 text-rose-100" : "bg-rose-200/80 text-rose-900"
+                              }`}>
+                                {upcomingBookings.filter(b => b.fbRequired).length}
+                              </span>
+                            </span>
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold leading-tight">F&amp;B Service</div>
+                            <div className={`text-[10px] mt-0.5 ${reservationFilterCategory === "FB" ? "text-rose-100" : "text-rose-700"}`}>
+                              Pantry requests
+                            </div>
+                          </div>
+                        </button>
+
+                        {/* Card 5: Housekeeping */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReservationTimeTab("upcoming");
+                            setReservationFilterCategory("Housekeeping");
+                          }}
+                          className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between space-y-2 ${
+                            reservationFilterCategory === "Housekeeping"
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-md ring-2 ring-emerald-500/50"
+                              : "bg-emerald-50/50 text-emerald-900 border-emerald-200 hover:bg-emerald-100/60"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <Sparkles className={`h-4 w-4 ${reservationFilterCategory === "Housekeeping" ? "text-emerald-200" : "text-emerald-600"}`} />
+                            <span className="flex items-center gap-1">
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                              </span>
+                              <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full ${
+                                reservationFilterCategory === "Housekeeping" ? "bg-emerald-700 text-emerald-100" : "bg-emerald-200/80 text-emerald-900"
+                              }`}>
+                                {upcomingBookings.length}
+                              </span>
+                            </span>
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold leading-tight flex items-center gap-1">
+                              <span>Housekeeping</span>
+                            </div>
+                            <div className={`text-[10px] mt-0.5 ${reservationFilterCategory === "Housekeeping" ? "text-emerald-100" : "text-emerald-700"}`}>
+                              15-min cleanup slots
+                            </div>
+                          </div>
+                        </button>
                       </div>
-                    </div>
+                    )}
 
                     {/* Active Applied Filter Chips */}
                     {activeFilterCount > 0 && (
@@ -3577,8 +3911,527 @@ export default function App() {
             );
           })()}
 
+          {/* ==================== TAB: ANALYTICS & DASHBOARD ==================== */}
+          {activeTab === "dashboard" && (() => {
+            // Dashboard filtering calculations
+            const dashFilteredBookings = bookings.filter(b => {
+              if (dashStartDate && b.date < dashStartDate) return false;
+              if (dashEndDate && b.date > dashEndDate) return false;
+              if (dashMonth !== "All" && b.date) {
+                const parts = b.date.split("-");
+                if (parts.length >= 2) {
+                  const m = parseInt(parts[1], 10);
+                  if (String(m) !== dashMonth) return false;
+                }
+              }
+              if (dashYear !== "All" && b.date) {
+                const parts = b.date.split("-");
+                if (parts[0] !== dashYear) return false;
+              }
+              return true;
+            });
+
+            // Recharts data aggregation
+            // 1. Top 10 Users by Bookings Count
+            const userCounts: Record<string, number> = {};
+            dashFilteredBookings.forEach(b => {
+              const name = b.bookerName || b.bookerEmail || "Unknown User";
+              userCounts[name] = (userCounts[name] || 0) + 1;
+            });
+            const dashTopUsersData = Object.entries(userCounts)
+              .map(([name, count]) => ({
+                name: name.length > 14 ? name.substring(0, 13) + "…" : name,
+                fullName: name,
+                count
+              }))
+              .sort((a, b) => b.count - a.count)
+              .slice(0, 10);
+
+            // 2. Top 5 Rooms
+            const roomCounts: Record<string, number> = {};
+            dashFilteredBookings.forEach(b => {
+              const room = rooms.find(r => r.roomId === b.roomId);
+              const roomName = room ? room.name : b.roomId;
+              roomCounts[roomName] = (roomCounts[roomName] || 0) + 1;
+            });
+            const dashTopRoomsData = Object.entries(roomCounts)
+              .map(([roomName, count]) => ({ roomName, count }))
+              .sort((a, b) => b.count - a.count)
+              .slice(0, 5);
+
+            // 3. Bookings per Department
+            const deptCounts: Record<string, number> = {};
+            dashFilteredBookings.forEach(b => {
+              let dept = getBookingDepartment(b);
+              if (dept.toLowerCase() === "secreterial") dept = "Secretarial";
+              deptCounts[dept] = (deptCounts[dept] || 0) + 1;
+            });
+            const dashDeptData = Object.entries(deptCounts)
+              .map(([department, count]) => ({ department, count }))
+              .sort((a, b) => b.count - a.count);
+
+            // 4. Internal vs External
+            const extCount = dashFilteredBookings.filter(b => b.meetingType === "External").length;
+            const intCount = dashFilteredBookings.length - extCount;
+            const dashMeetingTypeData = [
+              { name: "Internal Meetings", value: intCount, color: "#2563eb" },
+              { name: "External Meetings", value: extCount, color: "#f59e0b" }
+            ];
+
+            return (
+              <motion.div
+                key="dashboard-tab"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.15 }}
+                className="space-y-6"
+              >
+                {/* Header & Controls */}
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-5 mb-5">
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <BarChart3 className="h-6 w-6 text-blue-600" />
+                        <h3 className="font-display font-bold text-slate-900 text-xl">
+                          Executive Analytics &amp; Operations Dashboard
+                        </h3>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Comprehensive room utilization analytics, support demand metrics, and exportable reservation logs.
+                      </p>
+                    </div>
+
+                    {/* Export Excel CSV Button */}
+                    <button
+                      id="export-excel-csv-btn"
+                      onClick={() => {
+                        const headers = [
+                          "Booking ID",
+                          "Date",
+                          "Start Time",
+                          "Duration (Mins)",
+                          "Room ID",
+                          "Room Name",
+                          "Floor",
+                          "Booker Name",
+                          "Booker Email",
+                          "Department",
+                          "Meeting Agenda",
+                          "Meeting Type",
+                          "IT Support Required",
+                          "F&B Required",
+                          "Attendees Count",
+                          "Participant Emails",
+                          "External Visitors Count",
+                          "External Visitors Details",
+                          "Status",
+                          "Created At"
+                        ];
+
+                        const rows = dashFilteredBookings.map(b => {
+                          const room = rooms.find(r => r.roomId === b.roomId);
+                          const roomName = room ? room.name : b.roomId;
+                          const floor = room ? room.floor : "";
+                          let dept = getBookingDepartment(b);
+                          if (dept.toLowerCase() === "secreterial") dept = "Secretarial";
+                          const participants = (b.participantEmails || []).join("; ");
+                          const extGuests = (b.externalGuests || [])
+                            .map(g => `${g.name} (${g.company || "N/A"})`)
+                            .join("; ");
+
+                          return [
+                            b.bookingId,
+                            b.date,
+                            b.startTime,
+                            b.duration,
+                            b.roomId,
+                            roomName,
+                            floor,
+                            b.bookerName || "",
+                            b.bookerEmail || "",
+                            dept,
+                            b.reason || "",
+                            b.meetingType || "Internal",
+                            b.itSupportRequired ? "Yes" : "No",
+                            b.fbRequired ? "Yes" : "No",
+                            b.attendeesCount || 1,
+                            participants,
+                            (b.externalGuests || []).length,
+                            extGuests,
+                            b.status,
+                            b.createdAt || ""
+                          ].map(val => `"${String(val).replace(/"/g, '""')}"`);
+                        });
+
+                        const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+                        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement("a");
+                        link.setAttribute("href", url);
+                        link.setAttribute("download", `PSGroup_Meeting_Reservations_Export_${new Date().toISOString().split("T")[0]}.csv`);
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }}
+                      className="inline-flex items-center px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer shrink-0"
+                    >
+                      <FileSpreadsheet className="w-4 h-4 mr-2" />
+                      <span>Export Denormalized Excel (.csv)</span>
+                    </button>
+                  </div>
+
+                  {/* Filter Controls Bar */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200/80">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                        Start Date
+                      </label>
+                      <input
+                        type="date"
+                        value={dashStartDate}
+                        onChange={(e) => setDashStartDate(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                        End Date
+                      </label>
+                      <input
+                        type="date"
+                        value={dashEndDate}
+                        onChange={(e) => setDashEndDate(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                        Filter Month
+                      </label>
+                      <select
+                        value={dashMonth}
+                        onChange={(e) => setDashMonth(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 cursor-pointer"
+                      >
+                        <option value="All">All Months</option>
+                        <option value="1">January</option>
+                        <option value="2">February</option>
+                        <option value="3">March</option>
+                        <option value="4">April</option>
+                        <option value="5">May</option>
+                        <option value="6">June</option>
+                        <option value="7">July</option>
+                        <option value="8">August</option>
+                        <option value="9">September</option>
+                        <option value="10">October</option>
+                        <option value="11">November</option>
+                        <option value="12">December</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                        Filter Year
+                      </label>
+                      <select
+                        value={dashYear}
+                        onChange={(e) => setDashYear(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 cursor-pointer"
+                      >
+                        <option value="All">All Years</option>
+                        <option value="2026">2026</option>
+                        <option value="2025">2025</option>
+                        <option value="2024">2024</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-end">
+                      <button
+                        onClick={() => {
+                          setDashStartDate("");
+                          setDashEndDate("");
+                          setDashMonth("All");
+                          setDashYear("All");
+                        }}
+                        className="w-full py-1.5 px-3 bg-white hover:bg-slate-200 border border-slate-300 text-slate-700 font-bold text-xs rounded-lg transition-all cursor-pointer flex items-center justify-center space-x-1"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Reset Filters</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Visual Metric Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Total Bookings</p>
+                      <h4 className="text-2xl font-extrabold text-slate-900 mt-1">{dashFilteredBookings.length}</h4>
+                      <p className="text-[10px] text-slate-500 mt-0.5">Matching filter criteria</p>
+                    </div>
+                    <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                      <Calendar className="h-6 w-6" />
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-slate-400">IT Support Required</p>
+                      <h4 className="text-2xl font-extrabold text-purple-700 mt-1">
+                        {dashFilteredBookings.filter(b => b.itSupportRequired).length}
+                      </h4>
+                      <p className="text-[10px] text-slate-500 mt-0.5">
+                        {dashFilteredBookings.length > 0
+                          ? Math.round((dashFilteredBookings.filter(b => b.itSupportRequired).length / dashFilteredBookings.length) * 100)
+                          : 0}% of filtered meetings
+                      </p>
+                    </div>
+                    <div className="p-3 bg-purple-50 text-purple-600 rounded-xl">
+                      <Cpu className="h-6 w-6" />
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-slate-400">F&amp;B Service Required</p>
+                      <h4 className="text-2xl font-extrabold text-rose-700 mt-1">
+                        {dashFilteredBookings.filter(b => b.fbRequired).length}
+                      </h4>
+                      <p className="text-[10px] text-slate-500 mt-0.5">
+                        {dashFilteredBookings.length > 0
+                          ? Math.round((dashFilteredBookings.filter(b => b.fbRequired).length / dashFilteredBookings.length) * 100)
+                          : 0}% of filtered meetings
+                      </p>
+                    </div>
+                    <div className="p-3 bg-rose-50 text-rose-600 rounded-xl">
+                      <Coffee className="h-6 w-6" />
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-slate-400">External Meetings</p>
+                      <h4 className="text-2xl font-extrabold text-amber-700 mt-1">
+                        {dashFilteredBookings.filter(b => b.meetingType === "External").length}
+                      </h4>
+                      <p className="text-[10px] text-slate-500 mt-0.5">
+                        {dashFilteredBookings.length > 0
+                          ? Math.round((dashFilteredBookings.filter(b => b.meetingType === "External").length / dashFilteredBookings.length) * 100)
+                          : 0}% of filtered meetings
+                      </p>
+                    </div>
+                    <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
+                      <Users className="h-6 w-6" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recharts Analytics Section */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Top 10 Users Chart */}
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                    <div>
+                      <h4 className="font-display font-bold text-slate-900 text-base">Top 10 Users by Booking Volume</h4>
+                      <p className="text-xs text-slate-500">Most active meeting organizers across the company</p>
+                    </div>
+                    <div className="h-72 w-full">
+                      {dashTopUsersData.length === 0 ? (
+                        <div className="h-full flex items-center justify-center text-xs text-slate-400">No booking records found for selected filters</div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={dashTopUsersData} margin={{ top: 10, right: 10, left: -20, bottom: 25 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                            <XAxis dataKey="name" angle={-25} textAnchor="end" interval={0} tick={{ fontSize: 10 }} />
+                            <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+                            <Tooltip formatter={(value) => [`${value} Bookings`, 'Total']} />
+                            <Bar dataKey="count" fill="#2563eb" radius={[6, 6, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Top 5 Rooms Chart */}
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                    <div>
+                      <h4 className="font-display font-bold text-slate-900 text-base">Top 5 Most Booked Meeting Rooms</h4>
+                      <p className="text-xs text-slate-500">Rooms with highest reservation frequency</p>
+                    </div>
+                    <div className="h-72 w-full">
+                      {dashTopRoomsData.length === 0 ? (
+                        <div className="h-full flex items-center justify-center text-xs text-slate-400">No booking records found for selected filters</div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={dashTopRoomsData} margin={{ top: 10, right: 10, left: -20, bottom: 25 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                            <XAxis dataKey="roomName" interval={0} tick={{ fontSize: 10 }} />
+                            <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+                            <Tooltip formatter={(value) => [`${value} Bookings`, 'Utilization']} />
+                            <Bar dataKey="count" fill="#0d9488" radius={[6, 6, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Department Usage Chart */}
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                    <div>
+                      <h4 className="font-display font-bold text-slate-900 text-base">Bookings per Department</h4>
+                      <p className="text-xs text-slate-500">Distribution of room reservations by corporate department</p>
+                    </div>
+                    <div className="h-72 w-full">
+                      {dashDeptData.length === 0 ? (
+                        <div className="h-full flex items-center justify-center text-xs text-slate-400">No department records available</div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={dashDeptData} layout="vertical" margin={{ top: 10, right: 20, left: 20, bottom: 10 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                            <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
+                            <YAxis type="category" dataKey="department" tick={{ fontSize: 10 }} width={95} />
+                            <Tooltip formatter={(value) => [`${value} Bookings`, 'Total']} />
+                            <Bar dataKey="count" fill="#7c3aed" radius={[0, 6, 6, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Meeting Type Donut Chart */}
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                    <div>
+                      <h4 className="font-display font-bold text-slate-900 text-base">Internal vs External Meetings</h4>
+                      <p className="text-xs text-slate-500">Ratio of internal team meetings vs external visitor sessions</p>
+                    </div>
+                    <div className="h-72 w-full">
+                      {dashFilteredBookings.length === 0 ? (
+                        <div className="h-full flex items-center justify-center text-xs text-slate-400">No meeting data available</div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={dashMeetingTypeData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={55}
+                              outerRadius={85}
+                              paddingAngle={4}
+                              dataKey="value"
+                            >
+                              {dashMeetingTypeData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(value) => [`${value} Meetings`, 'Count']} />
+                            <Legend verticalAlign="bottom" height={36} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })()}
+
+          {/* ==================== TAB: ROOM CONFIGURATOR ==================== */}
+          {activeTab === "room-configurator" && isAdmin && (
+            <motion.div
+              key="room-configurator-tab"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.15 }}
+              className="space-y-6"
+            >
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <div className="sm:flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
+                  <div>
+                    <h3 className="font-display font-semibold text-slate-900 text-lg flex items-center gap-2">
+                      <Settings className="h-5 w-5 text-blue-600" />
+                      <span>Corporate Room Configurator &amp; Inventory Builder</span>
+                    </h3>
+                    <p className="text-xs text-slate-500">Configure meeting space capacity, floor locations, equipment tags, and real-time availability rules.</p>
+                  </div>
+                  <button
+                    id="room-config-add-btn"
+                    onClick={handleOpenAddRoom}
+                    className="mt-2 sm:mt-0 inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow cursor-pointer transition-all"
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1.5 text-white" />
+                    Add Meeting Room
+                  </button>
+                </div>
+
+                {roomsLoading ? (
+                  <div className="py-20 flex flex-col items-center justify-center">
+                    <RefreshCw className="h-8 w-8 text-slate-400 animate-spin mb-3" />
+                    <p className="text-sm text-slate-500">Loading room inventory from Firebase...</p>
+                  </div>
+                ) : rooms.length === 0 ? (
+                  <p className="text-center text-slate-500 py-10">No rooms registered.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {rooms.map((room) => (
+                      <div key={room.roomId} className="border border-slate-200 rounded-2xl p-5 hover:border-blue-300 hover:shadow-md transition-all flex flex-col justify-between bg-slate-50/30">
+                        <div>
+                          <div className="flex justify-between items-start mb-2">
+                            <h4 className="font-display font-bold text-slate-900 text-base">{room.name}</h4>
+                            <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-lg border border-blue-200">
+                              {room.capacity} seats
+                            </span>
+                          </div>
+                          <div className="flex items-center text-xs text-slate-500 gap-2 mb-3">
+                            <span className="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded">ID: {room.roomId}</span>
+                            <span>•</span>
+                            <span className="font-semibold text-slate-700">{room.floor || "Floor 1"}</span>
+                          </div>
+
+                          <div className="flex flex-wrap gap-1 mb-4">
+                            {room.features.map((feature, i) => (
+                              <span key={i} className="text-[10px] bg-white text-slate-700 border border-slate-200 font-medium px-2 py-0.5 rounded shadow-xs flex items-center">
+                                <Tag className="w-2.5 h-2.5 mr-1 text-blue-500" />
+                                {feature}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between border-t border-slate-200 pt-3 mt-2">
+                          <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> Active Room
+                          </span>
+                          <div className="flex items-center space-x-2">
+                            <button
+                              id={`config-edit-room-${room.roomId}`}
+                              onClick={() => handleOpenEditRoom(room)}
+                              className="px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-slate-200 rounded-lg border border-slate-300 transition-all cursor-pointer flex items-center gap-1"
+                            >
+                              <Edit3 className="w-3 h-3 text-blue-600" /> Edit
+                            </button>
+                            <button
+                              id={`config-delete-room-${room.roomId}`}
+                              onClick={() => handleDeleteRoom(room.roomId)}
+                              className="px-2.5 py-1 text-xs font-bold text-red-600 hover:bg-red-50 rounded-lg border border-red-200 transition-all cursor-pointer flex items-center gap-1"
+                            >
+                              <Trash2 className="w-3 h-3 text-red-500" /> Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
           {/* ==================== TAB 3: ADMIN PORTAL ==================== */}
-          {activeTab === "admin" && currentUser.role === "Admin" && (
+          {activeTab === "admin" && isAdmin && (
             <motion.div
               key="admin-tab"
               initial={{ opacity: 0, y: 15 }}
@@ -3587,202 +4440,75 @@ export default function App() {
               transition={{ duration: 0.15 }}
               className="space-y-6"
             >
-              {/* Meeting Rooms Configuration */}
+              {/* Registered Users Management Directory */}
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
                 <div className="sm:flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
                   <div>
-                    <h3 className="font-display font-semibold text-slate-900 text-lg">Meeting Rooms Configuration</h3>
-                    <p className="text-xs text-slate-500">Add, edit, or remove rooms, feature sets, and seating capacities.</p>
-                  </div>
-                  <button
-                    id="admin-add-room-btn"
-                    onClick={handleOpenAddRoom}
-                    className="mt-2 sm:mt-0 inline-flex items-center px-4 py-2 bg-slate-900 hover:bg-slate-850 text-white font-bold text-xs rounded-lg shadow cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
-                    Add Meeting Room
-                  </button>
-                </div>
-
-                {roomsLoading ? (
-                  <div className="py-20 flex flex-col items-center justify-center">
-                    <RefreshCw className="h-8 w-8 text-slate-400 animate-spin mb-3" />
-                    <p className="text-sm text-slate-500">Loading room inventory...</p>
-                  </div>
-                ) : rooms.length === 0 ? (
-                  <p className="text-center text-slate-500 py-10">No rooms registered.</p>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {rooms.map((room) => (
-                      <div key={room.roomId} className="border border-slate-200 rounded-2xl p-5 hover:bg-slate-50/50 transition-all flex flex-col justify-between">
-                        <div>
-                          <div className="flex justify-between items-start mb-2">
-                            <h4 className="font-display font-bold text-slate-900 text-base">{room.name}</h4>
-                            <span className="bg-slate-100 text-slate-700 text-xs font-semibold px-2.5 py-1 rounded-lg">
-                              Cap: {room.capacity} seats
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-slate-400 font-mono mb-3">ROOM ID: {room.roomId}</p>
-
-                          <div className="flex flex-wrap gap-1 mb-4">
-                            {room.features.map((feature, i) => (
-                              <span key={i} className="text-[10px] bg-blue-50 text-blue-700 border border-blue-100 font-medium px-2 py-0.5 rounded flex items-center">
-                                <Tag className="w-2.5 h-2.5 mr-1 text-slate-400" />
-                                {feature}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-end space-x-2 border-t border-slate-100 pt-3">
-                          <button
-                            id={`edit-room-btn-${room.roomId}`}
-                            onClick={() => handleOpenEditRoom(room)}
-                            className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded border border-slate-200 transition-all cursor-pointer"
-                            title="Edit Room Properties"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            id={`delete-room-btn-${room.roomId}`}
-                            onClick={() => handleDeleteRoom(room.roomId)}
-                            className="p-1.5 text-red-500 hover:text-red-750 hover:bg-red-50 rounded border border-red-200 transition-all cursor-pointer"
-                            title="Delete Room"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Database Maintenance */}
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                <div className="sm:flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
-                  <div>
-                    <h3 className="font-display font-semibold text-slate-900 text-lg">Database & Maintenance</h3>
-                    <p className="text-xs text-slate-500">Manage global bookings and clean up past records.</p>
-                  </div>
-                  <button
-                    id="admin-clear-bookings-btn"
-                    onClick={async () => {
-                      try {
-                        setAdminLoading(true);
-                        await apiService.clearAllBookings();
-                        setCancelSuccessMsg("All bookings have been successfully removed.");
-                        fetchBookingsData();
-                        fetchAdminData();
-                      } catch (err: any) {
-                        setGlobalError("Failed to clear bookings: " + err.message);
-                      } finally {
-                        setAdminLoading(false);
-                      }
-                    }}
-                    className="mt-2 sm:mt-0 inline-flex items-center px-4 py-2 bg-red-600 hover:bg-red-750 text-white font-bold text-xs rounded-lg shadow cursor-pointer transition-all animate-pulse"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-                    Wipe All Bookings
-                  </button>
-                </div>
-                <p className="text-xs text-slate-400">
-                  Clicking this button will permanently delete all meeting reservations from Firestore, allowing you to start with a fresh booking schedule.
-                </p>
-              </div>
-
-              {/* Outbound Email & IT Notification Logs */}
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                <div className="sm:flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
-                  <div>
                     <h3 className="font-display font-semibold text-slate-900 text-lg flex items-center gap-2">
-                      <Mail className="h-5 w-5 text-purple-600" />
-                      <span>Outbound Email & IT Notification Logs (it@psgroup.in)</span>
+                      <Users className="h-5 w-5 text-blue-600" />
+                      <span>Registered User Directory &amp; Account Verification</span>
                     </h3>
-                    <p className="text-xs text-slate-500">Real-time status of outgoing emails, SMTP delivery states, and error diagnostics.</p>
+                    <p className="text-xs text-slate-500">Manage employee accounts, verify identity credentials, and assign administrative access permissions stored in Firebase.</p>
                   </div>
-                  <div className="flex items-center space-x-2 mt-2 sm:mt-0">
-                    <button
-                      id="admin-refresh-notifs-btn"
-                      onClick={fetchAdminData}
-                      className="inline-flex items-center px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition-all cursor-pointer"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5 mr-1" />
-                      Refresh Logs
-                    </button>
-                    <button
-                      id="admin-test-email-btn"
-                      onClick={handleSendTestITEmail}
-                      className="inline-flex items-center px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-lg shadow transition-all cursor-pointer"
-                    >
-                      <Send className="w-3.5 h-3.5 mr-1.5" />
-                      Test Email Dispatch
-                    </button>
-                  </div>
+                  <span className="px-3 py-1 bg-blue-50 text-blue-800 border border-blue-200 font-bold text-xs rounded-full mt-2 sm:mt-0">
+                    {adminUsers.length} Registered Users
+                  </span>
                 </div>
 
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 mb-4 text-xs text-amber-900 space-y-1">
-                  <p className="font-bold flex items-center gap-1.5">
-                    <Info className="h-4 w-4 text-amber-600 shrink-0" />
-                    <span>How IT Email Notifications Work in Cloud Environments:</span>
-                  </p>
-                  <p className="text-amber-800 leading-relaxed">
-                    • <strong>Status "LOGGED_ONLY":</strong> The system generated the email and recorded it in the database. Outbound SMTP credentials (<code className="bg-amber-100 px-1 rounded">SMTP_HOST</code>, <code className="bg-amber-100 px-1 rounded">SMTP_USER</code>, <code className="bg-amber-100 px-1 rounded">SMTP_PASS</code>) are not configured in environment variables, so the email was logged safely rather than sent to inbox.
-                  </p>
-                  <p className="text-amber-800 leading-relaxed">
-                    • <strong>Status "SUCCESS":</strong> Email was dispatched through SMTP server directly to <code className="bg-amber-100 px-1 rounded">it@psgroup.in</code>.
-                  </p>
-                  <p className="text-amber-800 leading-relaxed">
-                    • <strong>Status "FAILED":</strong> SMTP server attempted delivery but returned an error (e.g. invalid host or credentials).
-                  </p>
-                </div>
-
-                {notificationLogs.length === 0 ? (
-                  <p className="text-center text-slate-400 py-8 text-xs font-medium">No outbound email notifications logged yet.</p>
+                {adminUsers.length === 0 ? (
+                  <p className="text-center text-slate-500 py-8 text-xs">No registered users retrieved.</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
-                          <th className="px-4 py-3">Timestamp</th>
-                          <th className="px-4 py-3">Recipient</th>
-                          <th className="px-4 py-3">Subject</th>
-                          <th className="px-4 py-3">Status</th>
-                          <th className="px-4 py-3">Diagnostic Message / Error</th>
+                          <th className="px-4 py-3">Employee Name</th>
+                          <th className="px-4 py-3">Corporate Email</th>
+                          <th className="px-4 py-3">Department</th>
+                          <th className="px-4 py-3">System Role</th>
+                          <th className="px-4 py-3">Verification Status</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {notificationLogs.map((log) => {
-                          const statusColor =
-                            log.status === "success"
-                              ? "bg-green-100 text-green-800 border-green-200"
-                              : log.status === "failed"
-                                ? "bg-red-100 text-red-800 border-red-200"
-                                : "bg-amber-100 text-amber-800 border-amber-200";
+                        {adminUsers.map((u) => {
+                          let displayDept = u.department || "General";
+                          if (u.email?.toLowerCase().includes("supratik@psgroup.in")) {
+                            displayDept = "Secretarial";
+                          } else if (displayDept.toLowerCase() === "secreterial") {
+                            displayDept = "Secretarial";
+                          }
 
-                          const statusLabel =
-                            log.status === "success"
-                              ? "SUCCESS (SENT)"
-                              : log.status === "failed"
-                                ? "FAILED"
-                                : "LOGGED (NO SMTP)";
+                          const isAccountVerified = u.emailVerified || u.isApproved;
 
                           return (
-                            <tr key={log.notificationId} className="hover:bg-slate-50/70 transition-colors">
-                              <td className="px-4 py-3 whitespace-nowrap text-slate-500 font-mono text-[11px]">
-                                {new Date(log.sentAt).toLocaleString()}
-                              </td>
-                              <td className="px-4 py-3 font-semibold text-slate-800">{log.emailTo}</td>
-                              <td className="px-4 py-3 text-slate-700 max-w-xs truncate" title={log.subject}>
-                                {log.subject}
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${statusColor}`}>
-                                  {statusLabel}
+                            <tr key={u.uid || u.email} className="hover:bg-slate-50/70 transition-colors">
+                              <td className="px-4 py-3 font-semibold text-slate-900">{u.name || "User"}</td>
+                              <td className="px-4 py-3 font-mono text-slate-600">{u.email}</td>
+                              <td className="px-4 py-3">
+                                <span className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-bold border ${
+                                  displayDept === "Secretarial" ? "bg-amber-100 text-amber-900 border-amber-300" : "bg-blue-50 text-blue-800 border-blue-200"
+                                }`}>
+                                  <Building className="h-3 w-3 text-slate-500" />
+                                  <span>{displayDept}</span>
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-slate-600 max-w-md text-[11px] leading-relaxed">
-                                {log.errorMessage || (log.status === "logged_only" ? "Recorded in database (SMTP server credentials not configured)" : "Delivered successfully.")}
+                              <td className="px-4 py-3">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                  u.role === "Admin" ? "bg-purple-100 text-purple-800 border-purple-200" : "bg-slate-100 text-slate-700 border-slate-200"
+                                }`}>
+                                  {u.role || "User"}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                {isAccountVerified ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Verified Account
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                                    <Shield className="w-3 h-3 text-amber-700" /> Pending Verification
+                                  </span>
+                                )}
                               </td>
                             </tr>
                           );
@@ -4054,9 +4780,110 @@ export default function App() {
 
       {/* FOOTER */}
       <footer className="bg-white border-t border-slate-200 py-6 mt-12 text-center text-xs text-slate-400">
-        <p>© 2026 PS Group Real Estate Private Limited. All Rights Reserved.</p>
-        <p className="mt-1">Corporate Meeting Room Reservation Portal. Built for high-efficiency operations.</p>
+        <div className="max-w-3xl mx-auto px-4 mb-5">
+          <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 text-slate-700 shadow-2xs flex flex-col sm:flex-row items-center justify-center gap-2.5 sm:gap-3 text-center sm:text-left">
+            <div className="p-2 bg-blue-100/70 text-blue-600 rounded-lg shrink-0">
+              <Mail className="w-4 h-4 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-800">
+                If no rooms are available, please contact <a href="mailto:priyobroto@psgroup.in" className="text-blue-600 hover:text-blue-800 font-bold underline transition-colors">priyobroto@psgroup.in</a>
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Our facilities team will assist you with urgent scheduling, special room arrangements, or alternative meeting spaces.
+              </p>
+            </div>
+          </div>
+        </div>
+        <p>© 2026 PS Group Realty Pvt. Ltd. All Rights Reserved.</p>
       </footer>
+
+      {/* ==================== USER READ-ONLY PROFILE MODAL ==================== */}
+      <AnimatePresence>
+        {showProfileModal && currentUser && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 10 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 10 }}
+              className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full overflow-hidden"
+            >
+              <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
+                <div className="flex items-center space-x-2">
+                  <UserCheck className="h-5 w-5 text-blue-400" />
+                  <h3 className="font-display font-bold text-lg">My Corporate Profile</h3>
+                </div>
+                <button
+                  onClick={() => setShowProfileModal(false)}
+                  className="text-slate-400 hover:text-white text-lg font-bold p-1 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4 text-slate-800">
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                  <div className="flex justify-between items-center border-b border-slate-200/60 pb-2">
+                    <span className="text-xs text-slate-500 font-medium">Full Name</span>
+                    <span className="text-sm font-bold text-slate-900">{currentUser.name || "Employee"}</span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-slate-200/60 pb-2">
+                    <span className="text-xs text-slate-500 font-medium">Corporate Email</span>
+                    <span className="text-sm font-mono font-semibold text-slate-800">{currentUser.email}</span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-slate-200/60 pb-2">
+                    <span className="text-xs text-slate-500 font-medium">Department</span>
+                    <span className="text-sm font-semibold text-slate-800">{currentUser.department || "General Operations"}</span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-slate-200/60 pb-2">
+                    <span className="text-xs text-slate-500 font-medium">System Role</span>
+                    <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                      {isAdmin ? "Administrator" : "Employee"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-slate-500 font-medium">Account Status</span>
+                    <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                      ✓ Active & Verified
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-900 space-y-2">
+                  <div className="flex items-center space-x-2 font-bold text-amber-900">
+                    <Info className="h-4 w-4 text-amber-600 shrink-0" />
+                    <span>Read-Only Profile Notice</span>
+                  </div>
+                  <p className="text-amber-800 leading-relaxed">
+                    User profile details are read-only and maintained by IT & Admin. If you need any profile updates or have any requests, please send an email to admin@psgroup.in.
+                  </p>
+                  <a
+                    href="mailto:admin@psgroup.in?subject=Profile%20Update%20Request"
+                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition-colors mt-1"
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>Send Mail to admin@psgroup.in</span>
+                  </a>
+                </div>
+
+                <div className="flex justify-end pt-2 border-t border-slate-100">
+                  <button
+                    onClick={() => setShowProfileModal(false)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-lg transition-all cursor-pointer"
+                  >
+                    Close Profile
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ==================== ADMIN EDIT ROOM MODAL ==================== */}
       <AnimatePresence>

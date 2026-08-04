@@ -22,6 +22,8 @@ export const DEPARTMENT_LIST = [
   "Plant and Machinery",
   "Procurement",
   "QA and QC",
+  "Secretarial",
+  "Secreterial",
   "Stores"
 ] as const;
 
@@ -31,6 +33,7 @@ export interface User {
   name: string;
   role: "User" | "Admin";
   isApproved: boolean;
+  emailVerified?: boolean;
   createdAt: string;
   department?: string;
   passwordHash?: string;
@@ -84,6 +87,7 @@ export interface Booking {
   externalCompany?: string;
   externalWhomToMeet?: string;
   externalGuests?: ExternalGuest[];
+  participantEmails?: string[];
   itSupportRequired?: boolean;
   fbRequired?: boolean;
   outlookEventId?: string;
