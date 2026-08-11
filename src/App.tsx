@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Calendar,
@@ -47,7 +47,9 @@ import {
   UserCheck,
   Activity,
   Layers,
-  Wand2
+  Wand2,
+  ArrowUp,
+  ArrowDown
 } from "lucide-react";
 import {
   BarChart,
@@ -66,6 +68,15 @@ import { apiService } from "./services/apiService";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./services/firebase";
 import { User, Room, Booking, NotificationLog, Recommendation, AdminActivityLog, DEPARTMENT_LIST, ExternalGuest } from "./types";
+
+// Helper to parse floor numbers accurately (e.g. "6th Floor" -> 6, "1st Floor" -> 1, "Ground Floor" -> 0)
+const parseFloorNumber = (f?: string | number): number => {
+  if (!f) return 1;
+  const s = String(f).toLowerCase();
+  if (s.includes("ground") || s.includes("basement") || s.includes("gf")) return 0;
+  const match = s.match(/\d+/);
+  return match ? parseInt(match[0], 10) : 1;
+};
 
 // Helper to format Firestore/Firebase errors nicely for the UI
 function formatError(err: any): string {
@@ -141,7 +152,11 @@ export default function App() {
     )
   );
   const [searchTargetTime, setSearchTargetTime] = useState<string>("");
-  const [searchFloor, setSearchFloor] = useState<string>("All");
+  const [searchFloors, setSearchFloors] = useState<string[]>(["All"]);
+
+  // Room Configurator Sort States
+  const [roomSortKey, setRoomSortKey] = useState<"floor" | "name" | "capacity">("floor");
+  const [roomSortDirection, setRoomSortDirection] = useState<"asc" | "desc">("asc");
 
   // Admin Dashboard & Analytics Filter States
   const [dashStartDate, setDashStartDate] = useState<string>("");
@@ -324,6 +339,7 @@ export default function App() {
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [formRoomName, setFormRoomName] = useState("");
   const [formRoomCapacity, setFormRoomCapacity] = useState(10);
+  const [formRoomFloor, setFormRoomFloor] = useState("1st Floor");
   const [formRoomFeature, setFormRoomFeature] = useState("");
   const [formRoomFeaturesList, setFormRoomFeaturesList] = useState<string[]>([]);
   const [roomActionError, setRoomActionError] = useState<string | null>(null);
@@ -489,7 +505,7 @@ export default function App() {
         attendeesCount: searchAttendees,
         duration: searchDuration,
         features: selectedFeatures,
-        floor: searchFloor,
+        floor: searchFloors.includes("All") || searchFloors.length === 0 ? "All" : searchFloors.join(","),
         clientDate,
         clientTime,
       });
@@ -522,6 +538,78 @@ export default function App() {
     };
     clearPreviousBookings();
   }, []);
+
+  // Dynamic room features dynamically fetched and aggregated from all rooms configured in the database
+  const availableDatabaseFeatures = useMemo(() => {
+    const featSet = new Set<string>();
+    rooms.forEach((r) => {
+      if (r.features && Array.isArray(r.features)) {
+        r.features.forEach((f) => {
+          if (f && typeof f === "string" && f.trim()) {
+            featSet.add(f.trim());
+          }
+        });
+      }
+    });
+    return Array.from(featSet).sort();
+  }, [rooms]);
+
+  // Restrict Dashboard and Admin tabs: Automatically redirect non-admin users to the reservation desk
+  useEffect(() => {
+    if (!isAdmin && (activeTab === "dashboard" || activeTab === "admin" || activeTab === "room-configurator")) {
+      setActiveTab("book");
+    }
+  }, [isAdmin, activeTab]);
+
+  // Dynamic floor list for multi-select search filter (includes 1st..6th floor and any custom room floor)
+  const defaultFloors = ["1st Floor", "2nd Floor", "3rd Floor", "4th Floor", "5th Floor", "6th Floor"];
+  const roomFloors = rooms.map((r) => (r.floor ? String(r.floor).trim() : "")).filter(Boolean);
+  const allUniqueFloors = Array.from(new Set([...defaultFloors, ...roomFloors])).sort(
+    (a, b) => parseFloorNumber(a) - parseFloorNumber(b)
+  );
+
+  const toggleSearchFloor = (floorName: string) => {
+    if (floorName === "All") {
+      setSearchFloors(["All"]);
+      return;
+    }
+
+    let updated = searchFloors.filter((f) => f !== "All");
+    if (updated.includes(floorName)) {
+      updated = updated.filter((f) => f !== floorName);
+    } else {
+      updated.push(floorName);
+    }
+
+    if (updated.length === 0 || updated.length === allUniqueFloors.length) {
+      setSearchFloors(["All"]);
+    } else {
+      setSearchFloors(updated);
+    }
+  };
+
+  // Sorted rooms for Admin Room Configurator
+  const sortedRooms = [...rooms].sort((a, b) => {
+    if (roomSortKey === "floor") {
+      const floorA = parseFloorNumber(a.floor);
+      const floorB = parseFloorNumber(b.floor);
+      if (floorA !== floorB) {
+        return roomSortDirection === "asc" ? floorA - floorB : floorB - floorA;
+      }
+      return a.name.localeCompare(b.name);
+    } else if (roomSortKey === "capacity") {
+      const capA = a.capacity || 0;
+      const capB = b.capacity || 0;
+      if (capA !== capB) {
+        return roomSortDirection === "asc" ? capA - capB : capB - capA;
+      }
+      return a.name.localeCompare(b.name);
+    } else {
+      return roomSortDirection === "asc"
+        ? a.name.localeCompare(b.name)
+        : b.name.localeCompare(a.name);
+    }
+  });
 
   // Actions: User Authentication
   const handleForgotPassword = async (e: React.FormEvent) => {
@@ -725,31 +813,7 @@ export default function App() {
         outlookSynced: false,
       });
 
-      // Automatically dispatch IT team notification email via server endpoint
-      let emailDiagnostic = "";
-      try {
-        const itRes = await fetch(getApiUrl("/api/notify-it-helpdesk"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            booking: result.booking,
-            roomName: selectedRoom.name
-          })
-        });
-        if (itRes.ok) {
-          const itData = await itRes.json();
-          emailDiagnostic = itData.message;
-        }
-      } catch (itErr) {
-        console.warn("Server email dispatch notification to IT Team failed, recorded in DB logs instead:", itErr);
-      }
-
-      let successMsg = result.message;
-      if (emailDiagnostic) {
-        successMsg += ` [IT Email Status: ${emailDiagnostic}]`;
-      }
-
-      setBookingSuccess(successMsg);
+      setBookingSuccess(result.message);
       
       // Store locally for subsequent reservations convenience
       localStorage.setItem("ps_booker_name", bookerName.trim());
@@ -1042,6 +1106,7 @@ export default function App() {
     setEditingRoom(null);
     setFormRoomName("");
     setFormRoomCapacity(10);
+    setFormRoomFloor("1st Floor");
     setFormRoomFeaturesList(["Projector", "Whiteboard"]);
     setFormRoomFeature("");
     setRoomActionError(null);
@@ -1052,6 +1117,7 @@ export default function App() {
     setEditingRoom(room);
     setFormRoomName(room.name);
     setFormRoomCapacity(room.capacity);
+    setFormRoomFloor(room.floor ? String(room.floor) : "1st Floor");
     setFormRoomFeaturesList([...room.features]);
     setFormRoomFeature("");
     setRoomActionError(null);
@@ -1080,10 +1146,10 @@ export default function App() {
     try {
       if (editingRoom) {
         // Edit Room
-        await apiService.updateRoom(editingRoom.roomId, formRoomName, formRoomCapacity, formRoomFeaturesList);
+        await apiService.updateRoom(editingRoom.roomId, formRoomName, formRoomCapacity, formRoomFeaturesList, formRoomFloor);
       } else {
         // Create Room
-        await apiService.addRoom(formRoomName, formRoomCapacity, formRoomFeaturesList);
+        await apiService.addRoom(formRoomName, formRoomCapacity, formRoomFeaturesList, formRoomFloor);
       }
       setShowRoomModal(false);
       fetchRoomsData();
@@ -1530,7 +1596,7 @@ export default function App() {
               <img
                 src="/PSG_LOGO.jpg"
                 alt="PS Group Logo"
-                className="h-10 w-auto object-contain shrink-0"
+                className="h-10 sm:h-11 w-auto object-contain shrink-0 rounded-md border border-slate-100 shadow-2xs bg-white p-0.5"
                 referrerPolicy="no-referrer"
               />
               <div className="hidden sm:block border-l border-slate-200 pl-3">
@@ -1711,20 +1777,22 @@ export default function App() {
                 <span>Feedback</span>
               </button>
 
-              <button
-                id="tab-analytics-dashboard-btn"
-                onClick={() => {
-                  setActiveTab("dashboard");
-                }}
-                className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
-                  activeTab === "dashboard"
-                    ? "bg-blue-600 text-white shadow-md font-bold"
-                    : "text-slate-300 hover:text-white hover:bg-slate-700"
-                }`}
-              >
-                <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Dashboard</span>
-              </button>
+              {isAdmin && (
+                <button
+                  id="tab-analytics-dashboard-btn"
+                  onClick={() => {
+                    setActiveTab("dashboard");
+                  }}
+                  className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
+                    activeTab === "dashboard"
+                      ? "bg-blue-600 text-white shadow-md font-bold"
+                      : "text-slate-300 hover:text-white hover:bg-slate-700"
+                  }`}
+                >
+                  <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Dashboard</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1780,23 +1848,68 @@ export default function App() {
                       <p className="text-[10px] text-slate-400">Bookings permitted up to 5 days in advance.</p>
                     </div>
 
-                    <div className="space-y-1">
-                      <label htmlFor="search-floor" className="block text-xs font-semibold text-slate-600 uppercase">
-                        Floor Number
-                      </label>
-                      <select
-                        id="search-floor"
-                        value={searchFloor}
-                        onChange={(e) => setSearchFloor(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
-                      >
-                        <option value="All">All Floors</option>
-                        <option value="Floor 1">Floor 1</option>
-                        <option value="Floor 2">Floor 2</option>
-                        <option value="Floor 3">Floor 3</option>
-                        <option value="Floor 4">Floor 4</option>
-                        <option value="Floor 5">Floor 5</option>
-                      </select>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-semibold text-slate-600 uppercase">
+                          Floor Number <span className="text-[10px] text-blue-600 font-normal lowercase">(multi-select)</span>
+                        </label>
+                        {!searchFloors.includes("All") && (
+                          <button
+                            type="button"
+                            onClick={() => setSearchFloors(["All"])}
+                            className="text-[10px] font-bold text-blue-600 hover:underline cursor-pointer"
+                          >
+                            Reset to All
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                        <div className="flex flex-wrap gap-1.5">
+                          <button
+                            id="search-floor-all-btn"
+                            type="button"
+                            onClick={() => toggleSearchFloor("All")}
+                            className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all cursor-pointer flex items-center gap-1 ${
+                              searchFloors.includes("All")
+                                ? "bg-blue-600 text-white border-blue-600 shadow-xs font-bold"
+                                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                            }`}
+                          >
+                            {searchFloors.includes("All") && <Check className="w-3 h-3 text-white" />}
+                            All Floors
+                          </button>
+
+                          {allUniqueFloors.map((floor) => {
+                            const isSelected = !searchFloors.includes("All") && searchFloors.includes(floor);
+                            return (
+                              <button
+                                key={floor}
+                                id={`search-floor-btn-${floor.replace(/\s+/g, "-").toLowerCase()}`}
+                                type="button"
+                                onClick={() => toggleSearchFloor(floor)}
+                                className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all cursor-pointer flex items-center gap-1 ${
+                                  isSelected
+                                    ? "bg-blue-600 text-white border-blue-600 shadow-xs font-bold"
+                                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                                }`}
+                              >
+                                {isSelected && <Check className="w-3 h-3 text-white" />}
+                                {floor}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <div className="text-[10px] text-slate-500 font-medium pt-1.5 border-t border-slate-200/80 flex justify-between items-center">
+                          <span>Selected:</span>
+                          <span className="font-bold text-slate-800">
+                            {searchFloors.includes("All")
+                              ? "All Floors Included"
+                              : `${searchFloors.length} Floor${searchFloors.length > 1 ? "s" : ""} (${searchFloors.join(", ")})`}
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="space-y-1">
@@ -1890,36 +2003,54 @@ export default function App() {
                     </div>
 
                     <div className="space-y-2 pt-2 border-t border-slate-100">
-                      <label className="block text-xs font-semibold text-slate-600 uppercase">
-                        Required Room Features
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {["AC", "Whiteboard", "Projector", "TV Screen"].map((feature) => {
-                          const isSelected = selectedFeatures.includes(feature);
-                          return (
-                            <button
-                              id={`feature-btn-${feature}`}
-                              key={feature}
-                              type="button"
-                              onClick={() => {
-                                if (isSelected) {
-                                  setSelectedFeatures(selectedFeatures.filter(f => f !== feature));
-                                } else {
-                                  setSelectedFeatures([...selectedFeatures, feature]);
-                                }
-                              }}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border flex items-center justify-between transition-all cursor-pointer ${
-                                isSelected
-                                  ? "bg-blue-50 border-blue-300 text-blue-700 font-bold"
-                                  : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
-                              }`}
-                            >
-                              <span>{feature}</span>
-                              {isSelected && <span className="text-blue-600 text-[10px]">✓</span>}
-                            </button>
-                          );
-                        })}
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-semibold text-slate-600 uppercase">
+                          Required Room Features
+                        </label>
+                        {selectedFeatures.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedFeatures([])}
+                            className="text-[10px] text-blue-600 hover:text-blue-800 font-semibold cursor-pointer"
+                          >
+                            Clear ({selectedFeatures.length})
+                          </button>
+                        )}
                       </div>
+                      {availableDatabaseFeatures.length > 0 ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          {availableDatabaseFeatures.map((feature) => {
+                            const isSelected = selectedFeatures.includes(feature);
+                            const featureId = `feature-btn-${feature.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
+                            return (
+                              <button
+                                id={featureId}
+                                key={feature}
+                                type="button"
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSelectedFeatures(selectedFeatures.filter((f) => f !== feature));
+                                  } else {
+                                    setSelectedFeatures([...selectedFeatures, feature]);
+                                  }
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border flex items-center justify-between transition-all cursor-pointer ${
+                                  isSelected
+                                    ? "bg-blue-50 border-blue-300 text-blue-700 font-bold"
+                                    : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                                }`}
+                              >
+                                <span>{feature}</span>
+                                {isSelected && <span className="text-blue-600 text-[10px]">✓</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-400 italic py-1">
+                          No specific features currently configured in database rooms.
+                        </p>
+                      )}
                     </div>
 
                     <button
@@ -3912,7 +4043,7 @@ export default function App() {
           })()}
 
           {/* ==================== TAB: ANALYTICS & DASHBOARD ==================== */}
-          {activeTab === "dashboard" && (() => {
+          {activeTab === "dashboard" && isAdmin && (() => {
             // Dashboard filtering calculations
             const dashFilteredBookings = bookings.filter(b => {
               if (dashStartDate && b.date < dashStartDate) return false;
@@ -4367,6 +4498,75 @@ export default function App() {
                   </button>
                 </div>
 
+                {/* Room Configurator Sorting Toolbar */}
+                {!roomsLoading && rooms.length > 0 && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-6 bg-slate-50 border border-slate-200 rounded-xl p-3.5">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
+                        <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Sort Rooms By:</span>
+                      </span>
+                      <select
+                        id="room-config-sort-select"
+                        value={`${roomSortKey}-${roomSortDirection}`}
+                        onChange={(e) => {
+                          const [key, dir] = e.target.value.split("-") as ["floor" | "name" | "capacity", "asc" | "desc"];
+                          setRoomSortKey(key);
+                          setRoomSortDirection(dir);
+                        }}
+                        className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-600 cursor-pointer shadow-xs"
+                      >
+                        <option value="floor-asc">Floor Number: Ascending (1st → 6th Floor)</option>
+                        <option value="floor-desc">Floor Number: Descending (6th → 1st Floor)</option>
+                        <option value="name-asc">Room Name (A → Z)</option>
+                        <option value="capacity-desc">Seating Capacity (High → Low)</option>
+                        <option value="capacity-asc">Seating Capacity (Low → High)</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs font-semibold text-slate-500">
+                        Quick Sort Floor:
+                      </span>
+                      <button
+                        id="sort-floor-asc-btn"
+                        type="button"
+                        onClick={() => {
+                          setRoomSortKey("floor");
+                          setRoomSortDirection("asc");
+                        }}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 ${
+                          roomSortKey === "floor" && roomSortDirection === "asc"
+                            ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                            : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                        }`}
+                        title="Sort rooms by floor ascending (1st Floor to 6th Floor)"
+                      >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                        <span>Floor (1st → 6th)</span>
+                      </button>
+
+                      <button
+                        id="sort-floor-desc-btn"
+                        type="button"
+                        onClick={() => {
+                          setRoomSortKey("floor");
+                          setRoomSortDirection("desc");
+                        }}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 ${
+                          roomSortKey === "floor" && roomSortDirection === "desc"
+                            ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                            : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                        }`}
+                        title="Sort rooms by floor descending (6th Floor to 1st Floor)"
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                        <span>Floor (6th → 1st)</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {roomsLoading ? (
                   <div className="py-20 flex flex-col items-center justify-center">
                     <RefreshCw className="h-8 w-8 text-slate-400 animate-spin mb-3" />
@@ -4376,7 +4576,7 @@ export default function App() {
                   <p className="text-center text-slate-500 py-10">No rooms registered.</p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {rooms.map((room) => (
+                    {sortedRooms.map((room) => (
                       <div key={room.roomId} className="border border-slate-200 rounded-2xl p-5 hover:border-blue-300 hover:shadow-md transition-all flex flex-col justify-between bg-slate-50/30">
                         <div>
                           <div className="flex justify-between items-start mb-2">
@@ -4388,7 +4588,9 @@ export default function App() {
                           <div className="flex items-center text-xs text-slate-500 gap-2 mb-3">
                             <span className="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded">ID: {room.roomId}</span>
                             <span>•</span>
-                            <span className="font-semibold text-slate-700">{room.floor || "Floor 1"}</span>
+                            <span className="font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                              📍 {room.floor || "1st Floor"}
+                            </span>
                           </div>
 
                           <div className="flex flex-wrap gap-1 mb-4">
@@ -4927,19 +5129,34 @@ export default function App() {
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <label htmlFor="form-room-capacity" className="block text-xs font-semibold text-slate-700 uppercase">Seating Capacity</label>
-                  <input
-                    id="form-room-capacity"
-                    type="number"
-                    required
-                    min="1"
-                    max="100"
-                    placeholder="12"
-                    value={formRoomCapacity}
-                    onChange={(e) => setFormRoomCapacity(parseInt(e.target.value) || 10)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 focus:bg-white transition-all text-slate-950"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label htmlFor="form-room-capacity" className="block text-xs font-semibold text-slate-700 uppercase">Seating Capacity</label>
+                    <input
+                      id="form-room-capacity"
+                      type="number"
+                      required
+                      min="1"
+                      max="100"
+                      placeholder="12"
+                      value={formRoomCapacity}
+                      onChange={(e) => setFormRoomCapacity(parseInt(e.target.value) || 10)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 focus:bg-white transition-all text-slate-950"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="form-room-floor" className="block text-xs font-semibold text-slate-700 uppercase">Floor / Level</label>
+                    <input
+                      id="form-room-floor"
+                      type="text"
+                      required
+                      placeholder="e.g. 1st Floor"
+                      value={formRoomFloor}
+                      onChange={(e) => setFormRoomFloor(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 focus:bg-white transition-all text-slate-950"
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">

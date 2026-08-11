@@ -674,20 +674,21 @@ export const apiService = {
       "bookings"
     );
 
-    // Automatically dispatch server email notification via Resend with attached calendar invite
+    // Automatically dispatch server email notifications with calendar invites (.ics)
     let emailNote = "";
     const isITRequired = !!newBooking.itSupportRequired;
+    const isFBRequired = !!newBooking.fbRequired;
     const roomsList = await this.getRooms();
     const targetRoom = roomsList.find(r => r.roomId === newBooking.roomId);
     const roomDisplayName = targetRoom ? targetRoom.name : newBooking.roomId;
 
-    // IT department and F&B department email recipients for every new booking
-    const employeeRecipients = ["it@psgroup.in", "hospitality@psgroup.in"];
+    // 1. Primary confirmation email to Booker / Organizer (and internal participants)
+    const organizerRecipients = [
+      newBooking.bookerEmail || "supratik@psgroup.in",
+      ...(newBooking.participantEmails || [])
+    ].filter((email, index, arr) => email && arr.indexOf(email) === index);
 
-    // Subject stating meeting details with meeting agenda and datetime
-    const emailSubject = isITRequired
-      ? `[IT Support] Meeting Invitation: ${newBooking.reason} - ${newBooking.date} at ${newBooking.startTime} (${roomDisplayName})`
-      : `Meeting Invitation: ${newBooking.reason} - ${newBooking.date} at ${newBooking.startTime} (${roomDisplayName})`;
+    const emailSubject = `[Booking Confirmed] ${roomDisplayName} on ${newBooking.date} at ${newBooking.startTime}`;
 
     let externalGuestsText = "";
     if (newBooking.externalGuests && newBooking.externalGuests.length > 0) {
@@ -709,16 +710,17 @@ export const apiService = {
       participantsText = `• Internal Participants: ${newBooking.participantEmails.join(", ")}\n`;
     }
 
-    const emailBody = `MEETING DETAILS & INVITATION\n\n` +
-      `• Meeting Agenda: ${newBooking.reason || "Corporate Meeting"}\n` +
-      `• Date & Time: ${newBooking.date} at ${newBooking.startTime} (${newBooking.duration} mins)\n` +
+    const emailBody = `MEETING ROOM RESERVATION CONFIRMED\n\n` +
+      `Your reservation has been confirmed on a first-come, first-served basis.\n\n` +
       `• Meeting Room: ${roomDisplayName}\n` +
+      `• Date & Time: ${newBooking.date} at ${newBooking.startTime} (${newBooking.duration} mins)\n` +
+      `• Meeting Agenda: ${newBooking.reason || "Corporate Meeting"}\n` +
       `• Organizer / Host: ${newBooking.bookerName || "N/A"} (${newBooking.bookerEmail || "N/A"})\n` +
       `• Department: ${newBooking.department || "N/A"}\n` +
       `• Meeting Type: ${newBooking.meetingType || "Internal"}\n` +
       participantsText +
-      `• IT Support Required: ${isITRequired ? "YES" : "No"}\n` +
-      `• F&B Required: ${newBooking.fbRequired ? "YES" : "No"}\n` +
+      `• IT Support Required: ${isITRequired ? "YES (Requested)" : "No"}\n` +
+      `• F&B Catering Required: ${isFBRequired ? "YES (Requested)" : "No"}\n` +
       (newBooking.attendeesCount ? `• Attendees Count: ${newBooking.attendeesCount}\n` : "") +
       externalGuestsText +
       `\nAn iCalendar (.ics) event invite is attached so this meeting can be saved directly to your Outlook or Google calendar.`;
@@ -731,10 +733,10 @@ export const apiService = {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          to: employeeRecipients,
+          to: organizerRecipients,
           subject: emailSubject,
           body: emailBody,
-          priority: isITRequired ? "High" : "Normal",
+          priority: "Normal",
           bookingId: newBooking.bookingId,
           booking: {
             bookingId: newBooking.bookingId,
@@ -755,8 +757,8 @@ export const apiService = {
 
       if (response.ok) {
         const resData = await response.json();
-        emailStatus = resData.status;
-        emailStatusMessage = resData.message;
+        emailStatus = resData.status || "success";
+        emailStatusMessage = resData.message || "Confirmation email dispatched to organizer.";
       } else {
         emailStatus = "failed";
         emailStatusMessage = `Server HTTP error (${response.status}) while attempting email dispatch.`;
@@ -764,6 +766,44 @@ export const apiService = {
     } catch (err: any) {
       emailStatus = "logged_only";
       emailStatusMessage = "Backend mail API server unreachable. Email notification recorded in system database.";
+    }
+
+    // 2. If IT Support Required is selected, dispatch IT request to it@psgroup.in
+    if (isITRequired) {
+      try {
+        await fetch("/api/notify-it-helpdesk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            booking: {
+              ...newBooking,
+              roomName: roomDisplayName
+            },
+            roomName: roomDisplayName
+          })
+        });
+      } catch (itErr) {
+        console.warn("Could not dispatch IT Support notification to it@psgroup.in:", itErr);
+      }
+    }
+
+    // 3. If F&B Required is selected, dispatch Hospitality request to hospitality@psgroup.in
+    if (isFBRequired) {
+      try {
+        await fetch("/api/notify-hospitality", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            booking: {
+              ...newBooking,
+              roomName: roomDisplayName
+            },
+            roomName: roomDisplayName
+          })
+        });
+      } catch (fbErr) {
+        console.warn("Could not dispatch Hospitality notification to hospitality@psgroup.in:", fbErr);
+      }
     }
 
     emailNote = emailStatusMessage;
@@ -948,12 +988,38 @@ export const apiService = {
     const requestedCapacity = attendeesCount ? Number(attendeesCount) : 0;
     const reqDuration = Number(duration);
 
+    const normalizeFloorStr = (f?: string | number): string => {
+      if (!f) return "";
+      const s = String(f).toLowerCase().trim();
+      const match = s.match(/\d+/);
+      return match ? match[0] : s;
+    };
+
     // 1. Filter rooms meeting minimum requirements, floor, and feature requirements
     const suitableRooms = rooms.filter(r => {
       if (r.capacity < requestedCapacity) return false;
-      if (floor && floor !== "All" && r.floor && String(r.floor).toLowerCase() !== floor.toLowerCase()) {
-        return false;
+
+      if (floor && floor !== "All") {
+        const floorArray = Array.isArray(floor)
+          ? floor
+          : typeof floor === "string" && floor.includes(",")
+          ? floor.split(",")
+          : [floor];
+
+        const validFloors = floorArray.map(f => String(f).trim()).filter(f => f && f !== "All");
+        if (validFloors.length > 0) {
+          const roomFloorNorm = normalizeFloorStr(r.floor);
+          const matchesAnyFloor = validFloors.some(f => {
+            const fNorm = normalizeFloorStr(f);
+            if (fNorm && roomFloorNorm && fNorm === roomFloorNorm) return true;
+            const rFloorLower = String(r.floor || "").toLowerCase();
+            const fLower = String(f).toLowerCase();
+            return rFloorLower.includes(fLower) || fLower.includes(rFloorLower);
+          });
+          if (!matchesAnyFloor) return false;
+        }
       }
+
       if (features && features.length > 0) {
         const hasAll = features.every(f =>
           r.features && r.features.some(rf => rf.toLowerCase() === f.toLowerCase())
