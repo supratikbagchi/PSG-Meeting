@@ -322,6 +322,10 @@ export const apiService = {
     const formattedEmail = email.toLowerCase().trim();
     const formattedDepartment = department.trim();
 
+    if (!formattedEmail.endsWith("@psgroup.in")) {
+      throw new Error("Registration is restricted to official @psgroup.in email addresses only. External domains (e.g., Gmail, Yahoo) are not permitted.");
+    }
+
     if (!formattedDepartment) {
       throw new Error("Department field is mandatory.");
     }

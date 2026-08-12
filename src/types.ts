@@ -23,7 +23,6 @@ export const DEPARTMENT_LIST = [
   "Procurement",
   "QA and QC",
   "Secretarial",
-  "Secreterial",
   "Stores"
 ] as const;
 

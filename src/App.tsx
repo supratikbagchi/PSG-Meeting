@@ -675,6 +675,12 @@ export default function App() {
     setRegError(null);
     setRegSuccess(null);
 
+    const cleanEmail = regEmail.toLowerCase().trim();
+    if (!cleanEmail.endsWith("@psgroup.in")) {
+      setRegError("Registration is restricted to official @psgroup.in email addresses only. External domains (such as Gmail or Yahoo) are not permitted.");
+      return;
+    }
+
     if (!regDepartment.trim()) {
       setRegError("Department field is mandatory.");
       return;
@@ -1420,11 +1426,12 @@ export default function App() {
                     id="reg-email"
                     type="email"
                     required
+                    placeholder="yourname@psgroup.in"
                     value={regEmail}
                     onChange={(e) => setRegEmail(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
                   />
-                  <p className="text-[10px] text-slate-500 font-medium">⚠️ Any valid email address can register.</p>
+                  <p className="text-[10px] text-slate-500 font-medium">⚠️ Only official company email addresses ending with <strong className="text-blue-700">@psgroup.in</strong> can register.</p>
                 </div>
 
                 <div className="space-y-1.5">

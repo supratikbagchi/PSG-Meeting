@@ -960,14 +960,21 @@ async function startServer() {
       return res.status(400).json({ error: "Please fill in all fields" });
     }
 
-    // Validation of valid email format
+    // Validation of valid email format and domain restriction
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return res.status(400).json({ error: "Please enter a valid email address." });
     }
 
+    const cleanEmail = email.toLowerCase().trim();
+    if (!cleanEmail.endsWith("@psgroup.in")) {
+      return res.status(400).json({
+        error: "Registration is restricted to official @psgroup.in email addresses only. External domains are not allowed."
+      });
+    }
+
     const dbObj = getDatabase();
-    const existingUser = dbObj.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    const existingUser = dbObj.users.find((u) => u.email.toLowerCase() === cleanEmail);
 
     if (existingUser) {
       return res.status(400).json({ error: "An account with this email already exists." });
