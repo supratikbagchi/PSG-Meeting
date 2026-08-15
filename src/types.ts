@@ -33,6 +33,9 @@ export interface User {
   role: "User" | "Admin";
   isApproved: boolean;
   emailVerified?: boolean;
+  verificationToken?: string;
+  resetPasswordToken?: string;
+  resetPasswordExpires?: number;
   createdAt: string;
   department?: string;
   passwordHash?: string;

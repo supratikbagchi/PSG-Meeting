@@ -107,7 +107,7 @@ function formatError(err: any): string {
   return message;
 }
 
-// Utility to retrieve API URL base for Microsoft Outlook Integration when deployed on Vercel
+// Utility to retrieve API URL base for backend services when deployed externally
 function getApiUrl(path: string): string {
   // Option to configure a custom API URL in environment variables
   const envApiUrl = (import.meta as any).env?.VITE_API_URL;
@@ -239,6 +239,48 @@ export default function App() {
   const [participantEmails, setParticipantEmails] = useState<string[]>([]);
   const [inputParticipantEmail, setInputParticipantEmail] = useState("");
   const [externalName, setExternalName] = useState("");
+  const [externalCompany, setExternalCompany] = useState("");
+  const [externalWhomToMeet, setExternalWhomToMeet] = useState("");
+  const [externalGuests, setExternalGuests] = useState<ExternalGuest[]>([
+    { name: "", company: "", email: "", phone: "", whomToMeet: "" }
+  ]);
+
+  // Dynamic Attendees Count: 1 (host/booker) + internal participants + external guests
+  const computedAttendeesCount = useMemo(() => {
+    let count = 1;
+    count += participantEmails.length;
+    if (meetingType === "External") {
+      const validGuests = externalGuests.filter(g => (g.name && g.name.trim()) || (g.email && g.email.trim()));
+      count += validGuests.length;
+    }
+    return count;
+  }, [participantEmails, meetingType, externalGuests]);
+
+  // Confirmation Success Modal Data State
+  const [confirmedModalData, setConfirmedModalData] = useState<{
+    roomName: string;
+    date: string;
+    startTime: string;
+    duration: number;
+    bookerName: string;
+    bookerEmail: string;
+    attendeesCount: number;
+    itSupportRequired: boolean;
+    fbRequired: boolean;
+    meetingType: string;
+    bookingId: string;
+    participants?: string[];
+  } | null>(null);
+
+  // Cookie Consent Notice State
+  const [cookiesAccepted, setCookiesAccepted] = useState(() => {
+    return localStorage.getItem("ps_cookies_accepted") === "true";
+  });
+
+  const handleAcceptCookies = () => {
+    localStorage.setItem("ps_cookies_accepted", "true");
+    setCookiesAccepted(true);
+  };
 
   const handleAddParticipant = () => {
     const email = inputParticipantEmail.trim().toLowerCase();
@@ -250,6 +292,10 @@ export default function App() {
     }
     if (participantEmails.includes(email)) {
       setInputParticipantEmail("");
+      return;
+    }
+    if (selectedRoom && computedAttendeesCount >= selectedRoom.capacity) {
+      alert(`Cannot add more participants. Maximum room capacity of ${selectedRoom.capacity} has been reached for ${selectedRoom.name}.`);
       return;
     }
     setParticipantEmails(prev => [...prev, email]);
@@ -266,13 +312,12 @@ export default function App() {
       handleAddParticipant();
     }
   };
-  const [externalCompany, setExternalCompany] = useState("");
-  const [externalWhomToMeet, setExternalWhomToMeet] = useState("");
-  const [externalGuests, setExternalGuests] = useState<ExternalGuest[]>([
-    { name: "", company: "", email: "", phone: "", whomToMeet: "" }
-  ]);
 
   const handleAddGuest = () => {
+    if (selectedRoom && computedAttendeesCount >= selectedRoom.capacity) {
+      alert(`Cannot add more guests. Maximum room capacity of ${selectedRoom.capacity} has been reached for ${selectedRoom.name}.`);
+      return;
+    }
     setExternalGuests(prev => [...prev, { name: "", company: "", email: "", phone: "", whomToMeet: "" }]);
   };
 
@@ -478,7 +523,7 @@ export default function App() {
   }, [currentUser, isAdmin, fetchRoomsData, fetchBookingsData, fetchAdminData]);
 
   // Handle Availability Search
-  const triggerAvailabilityCheck = async (e?: React.FormEvent) => {
+  const triggerAvailabilityCheck = async (e?: React.FormEvent, resetSelection = false) => {
     if (e) e.preventDefault();
     setSearchingAvailability(true);
     setBookingSuccess(null);
@@ -510,9 +555,11 @@ export default function App() {
         clientTime,
       });
       setRecommendations(results);
-      // Clear selected slot details to avoid stale checkout
-      setSelectedRoom(null);
-      setSelectedStartTime("");
+      // Only clear selected slot details if explicitly requested (e.g. form search submission)
+      if (resetSelection || e) {
+        setSelectedRoom(null);
+        setSelectedStartTime("");
+      }
     } catch (err: any) {
       setBookingError(formatError(err));
     } finally {
@@ -520,23 +567,30 @@ export default function App() {
     }
   };
 
-  // Automatically fetch recommendations on initial layout load
+  // Automatically fetch recommendations on initial layout load (no repeating interval)
   useEffect(() => {
-    triggerAvailabilityCheck();
+    triggerAvailabilityCheck(undefined, false);
+    fetchBookingsData();
+  }, []);
 
-    // Automatically wipe previous bookings once on start
-    const clearPreviousBookings = async () => {
-      if (!localStorage.getItem("ps_bookings_cleared_v2")) {
-        try {
-          await apiService.clearAllBookings();
-          localStorage.setItem("ps_bookings_cleared_v2", "true");
-          fetchBookingsData();
-        } catch (err) {
-          console.warn("Could not auto-clear previous bookings on startup:", err);
-        }
-      }
-    };
-    clearPreviousBookings();
+  // Handle URL actions for email verification or password reset links
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const action = params.get("action");
+    const token = params.get("token");
+    const email = params.get("email");
+
+    if (action === "verify-email" && token && email) {
+      apiService.verifyEmail(email, token).then((res) => {
+        setLoginEmail(email);
+        setLoginError(null);
+        setRegSuccess(res || "Email address verified successfully! You can now sign in.");
+        setAuthMode("login");
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }).catch((err) => {
+        setLoginError(err.message || "Failed to verify email token.");
+      });
+    }
   }, []);
 
   // Dynamic room features dynamically fetched and aggregated from all rooms configured in the database
@@ -714,11 +768,10 @@ export default function App() {
     setActiveTab("book");
   };
 
-  // Selection of slot triggers reservation checkout panel
+  // Selection of slot triggers reservation checkout panel and autoscrolls to the confirmation area
   const handleSelectSlot = (room: Room, startTime: string) => {
     setSelectedRoom(room);
     setSelectedStartTime(startTime);
-    setCustomAttendees(searchAttendees);
     setBookingSuccess(null);
     setBookingError(null);
     setBookingReason("");
@@ -728,11 +781,22 @@ export default function App() {
     setExternalName("");
     setExternalCompany("");
     setExternalWhomToMeet("");
+    setExternalGuests([{ name: "", company: "", email: "", phone: "", whomToMeet: "" }]);
+    setItSupportRequired(false);
+    setFbRequired(false);
 
     if (currentUser) {
       setBookerName(currentUser.name || "");
       setBookerEmail(currentUser.email || "");
     }
+
+    // Autoscroll to confirm booking section
+    setTimeout(() => {
+      const el = document.getElementById("booking-confirmation-panel");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 100);
   };
 
   // Confirm booking request
@@ -744,6 +808,11 @@ export default function App() {
     }
     if (!bookingReason.trim()) {
       setBookingError("Meeting Agenda is mandatory and must be filled.");
+      return;
+    }
+
+    if (computedAttendeesCount > selectedRoom.capacity) {
+      setBookingError(`Total attendees (${computedAttendeesCount}) exceeds the room's maximum capacity (${selectedRoom.capacity} persons). Please reduce participants.`);
       return;
     }
 
@@ -811,7 +880,7 @@ export default function App() {
         externalName: meetingType === "External" ? (validExternalGuests?.[0]?.name?.trim() || externalName.trim()) : undefined,
         externalCompany: meetingType === "External" ? (validExternalGuests?.[0]?.company?.trim() || externalCompany.trim()) : undefined,
         externalWhomToMeet: meetingType === "External" ? (validExternalGuests?.[0]?.whomToMeet?.trim() || externalWhomToMeet.trim() || bookerName.trim()) : undefined,
-        attendeesCount: customAttendees,
+        attendeesCount: computedAttendeesCount,
         itSupportRequired,
         fbRequired,
         clientDate,
@@ -820,6 +889,22 @@ export default function App() {
       });
 
       setBookingSuccess(result.message);
+
+      // Trigger Confirmed Modal Display
+      setConfirmedModalData({
+        roomName: selectedRoom.name,
+        date: searchDate,
+        startTime: selectedStartTime,
+        duration: searchDuration,
+        bookerName: bookerName.trim(),
+        bookerEmail: bookerEmail.trim(),
+        attendeesCount: computedAttendeesCount,
+        itSupportRequired,
+        fbRequired,
+        meetingType,
+        bookingId: result.booking?.bookingId || "",
+        participants: finalParticipantEmails
+      });
       
       // Store locally for subsequent reservations convenience
       localStorage.setItem("ps_booker_name", bookerName.trim());
@@ -1009,7 +1094,7 @@ export default function App() {
         body: JSON.stringify({
           to: "it@psgroup.in",
           subject: "[TEST DISPATCH] IT Helpdesk Notification Test",
-          body: "This is a diagnostic test email to verify SMTP mail server connectivity for IT Support dispatch.",
+          body: "This is a diagnostic test email to verify outbound notification email connectivity for IT Support dispatch.",
           priority: "High",
           bookingId: "test-booking"
         })
@@ -2237,10 +2322,11 @@ export default function App() {
                 <AnimatePresence>
                   {selectedRoom && selectedStartTime && (
                     <motion.div
+                      id="booking-confirmation-panel"
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: "auto" }}
                       exit={{ opacity: 0, height: 0 }}
-                      className="bg-slate-900 text-white rounded-2xl shadow-lg border border-slate-800 p-6 overflow-hidden"
+                      className="bg-slate-900 text-white rounded-2xl shadow-lg border border-slate-800 p-6 overflow-hidden scroll-mt-6"
                     >
                       <div className="flex justify-between items-start mb-4">
                         <div className="flex items-center space-x-2">
@@ -2599,24 +2685,21 @@ export default function App() {
                           </div>
 
                           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                            <div className="flex items-center space-x-2.5 w-full sm:w-auto">
-                              <label htmlFor="custom-attendees" className="text-xs text-slate-300 shrink-0">ATTENDEES COUNT:</label>
-                              <input
-                                id="custom-attendees"
-                                type="number"
-                                min="1"
-                                max={selectedRoom.capacity}
-                                value={customAttendees}
-                                onChange={(e) => setCustomAttendees(parseInt(e.target.value) || 1)}
-                                className="bg-slate-800 border border-slate-700 rounded px-2.5 py-1 text-xs text-white focus:outline-none focus:border-blue-500 w-20"
-                              />
-                              <span className="text-[10px] text-slate-500">Max: {selectedRoom.capacity}</span>
+                            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                              <span className="text-xs text-slate-300 font-semibold shrink-0">ATTENDEES COUNT:</span>
+                              <span className="px-3 py-1 bg-slate-800 border border-slate-700 rounded-lg text-xs font-bold text-white shadow-inner flex items-center space-x-1.5">
+                                <Users className="w-3.5 h-3.5 text-blue-400" />
+                                <span>{computedAttendeesCount} {computedAttendeesCount === 1 ? "Person" : "Persons"}</span>
+                              </span>
+                              <span className={`text-[11px] px-2 py-0.5 rounded ${computedAttendeesCount > selectedRoom.capacity ? "bg-red-500/20 text-red-400 font-bold border border-red-500/30" : "text-slate-400"}`}>
+                                (Capacity: {selectedRoom.capacity} Max)
+                              </span>
                             </div>
 
                             <button
                               id="confirm-booking-btn"
                               onClick={handleConfirmBooking}
-                              disabled={submittingBooking}
+                              disabled={submittingBooking || computedAttendeesCount > selectedRoom.capacity}
                               className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-md shadow-blue-500/20 transition-all flex items-center justify-center cursor-pointer disabled:opacity-55"
                             >
                               {submittingBooking ? <RefreshCw className="h-4 w-4 animate-spin text-white mr-2" /> : null}
@@ -2635,13 +2718,18 @@ export default function App() {
           {/* ==================== TAB 2: ALL RESERVATIONS ==================== */}
           {activeTab === "my-bookings" && (() => {
             const isAdmin = currentUser?.role?.toLowerCase() === "admin" || currentUser?.role === "Admin";
+            const userEmailLower = currentUser?.email?.toLowerCase().trim() || "";
 
-            // 1. User Visibility Scope Filter: Admin sees all, Regular users see only their own bookings
+            // 1. User Visibility Scope Filter: Admin sees all, Regular users see bookings made by them or if they are in the participant list
             const visibleBookings = bookings.filter((booking) => {
               if (isAdmin) return true;
+              if (!userEmailLower) return true;
               const matchUid = currentUser?.uid && booking.userId === currentUser.uid;
-              const matchEmail = currentUser?.email && booking.bookerEmail?.toLowerCase() === currentUser.email?.toLowerCase();
-              return matchUid || matchEmail;
+              const matchEmail = (booking.bookerEmail || "").toLowerCase().trim() === userEmailLower;
+              const matchParticipant = Array.isArray(booking.participantEmails) && booking.participantEmails.some(
+                (p) => p.toLowerCase().trim() === userEmailLower
+              );
+              return matchUid || matchEmail || matchParticipant;
             });
 
             // Helper to determine if a booking is past or cancelled
@@ -3359,13 +3447,19 @@ export default function App() {
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   <div className="flex flex-wrap items-center gap-1.5">
                                     {booking.status !== "Cancelled" ? (
-                                      <button
-                                        id={`cancel-btn-${booking.bookingId}`}
-                                        onClick={() => handleCancelBooking(booking)}
-                                        className="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-800 border border-red-200 rounded text-xs font-bold transition-all cursor-pointer shrink-0"
-                                      >
-                                        Cancel
-                                      </button>
+                                      isAdmin || (userEmailLower && (booking.bookerEmail || "").toLowerCase().trim() === userEmailLower) || (currentUser?.uid && booking.userId === currentUser.uid) ? (
+                                        <button
+                                          id={`cancel-btn-${booking.bookingId}`}
+                                          onClick={() => handleCancelBooking(booking)}
+                                          className="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-800 border border-red-200 rounded text-xs font-bold transition-all cursor-pointer shrink-0"
+                                        >
+                                          Cancel
+                                        </button>
+                                      ) : (
+                                        <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-semibold rounded border border-slate-200">
+                                          Participant
+                                        </span>
+                                      )
                                     ) : null}
 
                                     {booking.status !== "Cancelled" ? (
@@ -5403,6 +5497,116 @@ export default function App() {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Booking Confirmation Dialog (Popup upon successful booking) */}
+      <AnimatePresence>
+        {confirmedModalData && (
+          <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 border border-slate-200 overflow-hidden"
+            >
+              <div className="flex items-start space-x-4 mb-5">
+                <div className="p-3 bg-emerald-100 text-emerald-600 rounded-full shrink-0">
+                  <CheckCircle className="h-8 w-8" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900">Reservation Confirmed!</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Your meeting room has been successfully booked and calendar invitations have been prepared.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 text-xs space-y-3 mb-5">
+                <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                  <span className="text-slate-500 font-medium">Meeting Room:</span>
+                  <span className="font-bold text-slate-900 text-sm">{confirmedModalData.roomName}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">Date &amp; Time:</span>
+                  <span className="font-bold text-slate-800">
+                    {confirmedModalData.date} at {confirmedModalData.startTime} ({confirmedModalData.duration} Mins)
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">Host / Organizer:</span>
+                  <span className="font-semibold text-slate-800">
+                    {confirmedModalData.bookerName} ({confirmedModalData.bookerEmail})
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">Total Attendees:</span>
+                  <span className="px-2 py-0.5 bg-blue-100 text-blue-700 font-bold rounded">
+                    {confirmedModalData.attendeesCount} {confirmedModalData.attendeesCount === 1 ? "Person" : "Persons"}
+                  </span>
+                </div>
+                {confirmedModalData.participants && confirmedModalData.participants.length > 0 && (
+                  <div className="pt-2 border-t border-slate-200">
+                    <span className="text-slate-500 font-medium block mb-1">Participants:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {confirmedModalData.participants.map((p, idx) => (
+                        <span key={idx} className="px-2 py-0.5 bg-white border border-slate-200 text-slate-700 rounded text-[11px]">
+                          {p}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(confirmedModalData.itSupportRequired || confirmedModalData.fbRequired) && (
+                  <div className="pt-2 border-t border-slate-200 flex flex-wrap gap-2">
+                    {confirmedModalData.itSupportRequired && (
+                      <span className="px-2 py-0.5 bg-purple-100 text-purple-700 font-semibold rounded text-[11px]">
+                        ✓ IT Support Dispatched (it@psgroup.in)
+                      </span>
+                    )}
+                    {confirmedModalData.fbRequired && (
+                      <span className="px-2 py-0.5 bg-amber-100 text-amber-800 font-semibold rounded text-[11px]">
+                        ✓ F&B Hospitality Dispatched (hospitality@psgroup.in)
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setConfirmedModalData(null)}
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+                >
+                  Done &amp; Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Mandatory Necessary Cookie Consent Banner */}
+      <AnimatePresence>
+        {!cookiesAccepted && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-4 left-4 right-4 md:left-8 md:right-8 bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-slate-800 z-40 flex flex-col sm:flex-row items-center justify-between gap-4"
+          >
+            <div className="text-xs text-slate-300">
+              <span className="font-bold text-white block mb-0.5">🔒 Mandatory Enterprise Cookies &amp; Session Refresh</span>
+              This portal utilizes strictly necessary session cookies and real-time syncing to maintain active bookings, security validation, and role permissions across your browser tabs.
+            </div>
+            <button
+              onClick={handleAcceptCookies}
+              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs whitespace-nowrap transition-all shadow-md shadow-blue-500/20 cursor-pointer shrink-0"
+            >
+              Accept Necessary Cookies &amp; Continue
+            </button>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

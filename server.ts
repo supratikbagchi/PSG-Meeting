@@ -3,7 +3,6 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import nodemailer from "nodemailer";
 import { Resend } from "resend";
 import { createServer as createViteServer } from "vite";
 
@@ -15,6 +14,11 @@ interface User {
   name: string;
   role: "User" | "Admin";
   isApproved: boolean;
+  emailVerified?: boolean;
+  verificationToken?: string;
+  resetPasswordToken?: string;
+  resetPasswordExpires?: number;
+  department?: string;
   createdAt: string;
 }
 
@@ -71,7 +75,7 @@ interface DatabaseSchema {
 const PORT = 3000;
 const DB_FILE = process.env.DATABASE_URL || "./db.json";
 const JWT_SECRET = process.env.JWT_SECRET || "meeting-room-booking-jwt-secret-key-12345";
-const ADMIN_ALERT_EMAIL = process.env.ADMIN_ALERT_EMAIL || "supratik@psgroup.in";
+const ADMIN_ALERT_EMAIL = process.env.ADMIN_ALERT_EMAIL || "admin@psgroup.in";
 
 // Simple PBKDF2 password hasher
 function hashPassword(password: string): string {
@@ -182,27 +186,6 @@ function saveDatabase(db: DatabaseSchema) {
   } catch (err) {
     console.error("Failed to write to database file", err);
   }
-}
-
-// Mailer client helper (transporter can be mock or real SMTP)
-function getTransporter() {
-  const host = process.env.SMTP_HOST || "smtp.office365.com";
-  const port = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 587;
-  const user = process.env.SMTP_USER || "supratik@psgroup.in";
-  const pass = process.env.SMTP_PASS || "czjyxgcrcfbqnxfs";
-
-  if (host && user && pass) {
-    return nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth: { user, pass },
-      tls: {
-        rejectUnauthorized: false
-      }
-    });
-  }
-  return null;
 }
 
 // Helper function to generate iCalendar (.ics) content for meeting invites
@@ -457,13 +440,12 @@ async function sendEmailNotification(
   customHtml?: string
 ) {
   const dbObj = getDatabase();
-  const transporter = getTransporter();
   let status: "success" | "logged_only" | "failed" = "logged_only";
   let statusMessage = "";
 
-  const senderUser = process.env.SMTP_USER || "supratik@psgroup.in";
+  const adminEmail = process.env.ADMIN_ALERT_EMAIL || "supratik@psgroup.in";
 
-  // List of non-existent or internal aliases that fail recipient lookup on Exchange
+  // List of non-existent or internal aliases that fail recipient lookup
   const invalidInternalAliases = [
     "ithelpdesk@psgroup.in",
     "user@psgroup.in",
@@ -496,7 +478,7 @@ async function sendEmailNotification(
   }
 
   if (validRecipients.length === 0) {
-    validRecipients.push(senderUser);
+    validRecipients.push(adminEmail);
   }
 
   const primaryRecipient = validRecipients[0];
@@ -516,35 +498,13 @@ async function sendEmailNotification(
     noteText: "Sent via PS Group Corporate Meeting Portal Notification Service."
   }).html;
 
-  const mailOptions: any = {
-    from: senderUser,
-    to: validRecipients,
-    replyTo: senderUser,
-    subject,
-    text: body,
-    html: htmlBody,
-    headers: priority === "High" ? { "X-Priority": "1", "X-MSMail-Priority": "High", Importance: "high" } : undefined,
-  };
-
-  // Attach .ics iCalendar file for calendar invites if booking details exist
-  if (bookingData || (bookingId && bookingId !== "general" && bookingId !== "account-approval")) {
-    const icsContent = generateIcsContent(bookingData || { bookingId, reason: subject }, primaryRecipient);
-    const icsFilename = `meeting-invite-${bookingId || "booking"}.ics`;
-
-    mailOptions.attachments = [
-      {
-        filename: icsFilename,
-        content: icsContent,
-        contentType: "text/calendar; method=REQUEST; charset=UTF-8; name=" + icsFilename,
-      },
-    ];
-  }
-
-  // 1. Primary Dispatch via Resend API
+  // Primary Dispatch via Resend API
   if (process.env.RESEND_API_KEY) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY);
       const fromAddress = process.env.RESEND_FROM_EMAIL || "PS Group Meeting Portal <onboarding@resend.dev>";
+      const isSandboxFrom = fromAddress.includes("resend.dev");
+      const verifiedTestEmail = process.env.RESEND_TEST_EMAIL || adminEmail;
 
       let resendAttachments: any[] = [];
       if (bookingData || (bookingId && bookingId !== "general" && bookingId !== "account-approval")) {
@@ -557,79 +517,73 @@ async function sendEmailNotification(
         });
       }
 
-      let resendResponse = await resend.emails.send({
+      // If in Resend Sandbox mode (onboarding@resend.dev), Resend restricts sending strictly to the account owner's email address
+      const isSendingToVerifiedOnly = validRecipients.length === 1 && validRecipients[0].toLowerCase() === verifiedTestEmail.toLowerCase();
+      
+      let targetTo: string[];
+      let finalSubject = subject;
+      let finalHtml = htmlBody;
+      let finalBody = body;
+      let isSandboxRouted = false;
+
+      if (isSandboxFrom && !isSendingToVerifiedOnly) {
+        // Route sandbox test safely directly to the verified email to avoid Resend validation error
+        targetTo = [verifiedTestEmail];
+        finalSubject = `[Resend Sandbox -> ${recipientDisplayString}] ${subject}`;
+        finalBody = `[NOTE: Resend Sandbox Mode Active - Intended Recipient(s): ${recipientDisplayString}]\n\n` + body;
+        finalHtml = `<div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:10px 14px;margin-bottom:16px;font-family:sans-serif;font-size:12px;color:#92400e;"><strong>Resend Sandbox Mode:</strong> Intended recipient(s): <code>${recipientDisplayString}</code></div>` + htmlBody;
+        isSandboxRouted = true;
+      } else {
+        targetTo = validRecipients;
+      }
+
+      const resendResponse = await resend.emails.send({
         from: fromAddress,
-        to: validRecipients,
-        subject,
-        text: body,
-        html: htmlBody,
+        to: targetTo,
+        subject: finalSubject,
+        text: finalBody,
+        html: finalHtml,
         attachments: resendAttachments.length > 0 ? resendAttachments : undefined,
       });
 
-      // Handle Resend testing restriction gracefully (e.g. unverified domain in free tier)
       if (resendResponse.error) {
         const errMsg = resendResponse.error.message || "";
-        console.warn("[Resend Warning] Primary dispatch returned error:", errMsg);
-
-        // If error is due to testing sandbox recipient restriction, route to developer/admin email
-        if (errMsg.toLowerCase().includes("testing emails") || errMsg.toLowerCase().includes("verify a domain")) {
-          console.log(`[Resend Sandbox Fallback] Re-dispatching to ${senderUser} with target headers for ${recipientDisplayString}`);
-          const sandboxSubject = `[Resend Sandbox Test -> ${recipientDisplayString}] ${subject}`;
-          const sandboxRes = await resend.emails.send({
-            from: fromAddress,
-            to: [senderUser],
-            subject: sandboxSubject,
+        // If still blocked by domain validation on a custom domain, retry fallback to verified testing email
+        if (!isSandboxRouted && (errMsg.toLowerCase().includes("testing emails") || errMsg.toLowerCase().includes("verify a domain"))) {
+          const fallbackRes = await resend.emails.send({
+            from: "PS Group Meeting Portal <onboarding@resend.dev>",
+            to: [verifiedTestEmail],
+            subject: `[Resend Sandbox -> ${recipientDisplayString}] ${subject}`,
             text: `[NOTE: Resend Sandbox Mode Active - Intended Recipient(s): ${recipientDisplayString}]\n\n` + body,
             html: `<div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:10px 14px;margin-bottom:16px;font-family:sans-serif;font-size:12px;color:#92400e;"><strong>Resend Sandbox Mode:</strong> Intended recipient(s): <code>${recipientDisplayString}</code></div>` + htmlBody,
             attachments: resendAttachments.length > 0 ? resendAttachments : undefined,
           });
 
-          if (!sandboxRes.error) {
+          if (!fallbackRes.error) {
             status = "success";
-            statusMessage = `Email delivered via Resend Sandbox to ${senderUser} for ${recipientDisplayString} (Resend ID: ${sandboxRes.data?.id})`;
-            console.log(`[Resend Sandbox Success] Delivered to ${senderUser} | ID: ${sandboxRes.data?.id}`);
+            statusMessage = `Delivered via Resend Sandbox to ${verifiedTestEmail} (Intended: ${recipientDisplayString}) [ID: ${fallbackRes.data?.id}]`;
           } else {
-            throw new Error(sandboxRes.error.message);
+            throw new Error(fallbackRes.error.message);
           }
         } else {
           throw new Error(errMsg);
         }
       } else {
         status = "success";
-        statusMessage = `Email and Calendar Invite (.ics) delivered via Resend API to ${recipientDisplayString} (ID: ${resendResponse.data?.id})`;
-        console.log(`[Resend API Success] Sent email to ${recipientDisplayString} | Resend ID: ${resendResponse.data?.id}`);
-      }
-    } catch (resendErr: any) {
-      console.error("Resend API Delivery Error:", resendErr?.message || resendErr);
-      status = "failed";
-      statusMessage = `Resend API Delivery Note: ${resendErr?.message || String(resendErr)}`;
-
-      // Fallback to SMTP if configured
-      if (transporter) {
-        try {
-          await transporter.sendMail(mailOptions);
-          status = "success";
-          statusMessage += " (Fallback to SMTP succeeded)";
-        } catch (smtpErr: any) {
-          statusMessage += ` (SMTP Fallback Error: ${smtpErr?.message || String(smtpErr)})`;
+        if (isSandboxRouted) {
+          statusMessage = `Delivered via Resend Sandbox to ${verifiedTestEmail} for ${recipientDisplayString} [ID: ${resendResponse.data?.id}]`;
+        } else {
+          statusMessage = `Email and Calendar Invite (.ics) delivered via Resend API to ${recipientDisplayString} [ID: ${resendResponse.data?.id}]`;
         }
       }
-    }
-  } else if (transporter) {
-    try {
-      await transporter.sendMail(mailOptions);
-      status = "success";
-      statusMessage = `Email and Calendar Invite (.ics) successfully sent via SMTP to ${recipientDisplayString}`;
-      console.log(`[Email & ICS Sent] To: ${recipientDisplayString} | Subject: ${subject}`);
-    } catch (err: any) {
+    } catch (resendErr: any) {
       status = "failed";
-      statusMessage = `SMTP Delivery Error: ${err?.message || String(err)}`;
-      console.error("SMTP Mail Send Failed:", err?.message || err);
+      statusMessage = `Resend API Delivery Note: ${resendErr?.message || String(resendErr)}`;
     }
   } else {
     status = "logged_only";
-    statusMessage = "No active mail provider configured (RESEND_API_KEY or SMTP credentials). Email was recorded in system logs.";
-    console.log(`[Email Logged (No Mail Provider Configured)] To: ${recipientDisplayString} | Subject: ${subject}`);
+    statusMessage = "Resend API key not configured. Email recorded in system notification logs.";
+    console.log(`[Email Logged] To: ${recipientDisplayString} | Subject: ${subject}`);
   }
 
   const newLog: NotificationLog = {
@@ -953,11 +907,11 @@ async function startServer() {
 
   // ==================== AUTHENTICATION ENDPOINTS ====================
 
-  app.post("/api/auth/register", (req, res) => {
-    const { email, password, name } = req.body;
+  app.post("/api/auth/register", async (req, res) => {
+    const { email, password, name, department } = req.body;
 
     if (!email || !password || !name) {
-      return res.status(400).json({ error: "Please fill in all fields" });
+      return res.status(400).json({ error: "Please fill in all required fields." });
     }
 
     // Validation of valid email format and domain restriction
@@ -980,28 +934,228 @@ async function startServer() {
       return res.status(400).json({ error: "An account with this email already exists." });
     }
 
+    const verificationToken = crypto.randomBytes(24).toString("hex");
+
     const newUser: User = {
       uid: "user-" + crypto.randomUUID(),
-      email: email.toLowerCase(),
+      email: cleanEmail,
       passwordHash: hashPassword(password),
-      name,
+      name: name.trim(),
       role: "User", // Defaults to standard role
-      isApproved: false, // Standard users require Admin approval
+      isApproved: true, // Auto-approved upon email link confirmation
+      emailVerified: false, // Must verify via link sent to @psgroup.in
+      verificationToken,
+      department: department || "General",
       createdAt: new Date().toISOString(),
     };
 
     dbObj.users.push(newUser);
     saveDatabase(dbObj);
 
+    // Build absolute verification URL
+    const protocol = req.headers["x-forwarded-proto"] || req.protocol || "http";
+    const host = req.headers["x-forwarded-host"] || req.headers.host;
+    const origin = `${protocol}://${host}`;
+    const verificationUrl = `${origin}/?action=verify-email&token=${verificationToken}&email=${encodeURIComponent(cleanEmail)}`;
+
+    // Dispatch verification email to @psgroup.in inbox
+    try {
+      const emailDraft = buildStructuredEmailDraft({
+        title: "Confirm Your PS Group Portal Registration",
+        badgeText: "ACCOUNT VERIFICATION",
+        badgeBg: "#0284c7",
+        recipientName: newUser.name,
+        summaryText: "Thank you for registering on the PS Group Meeting Room Portal. Please click the link below to confirm your email address and activate your account.",
+        details: [
+          { label: "Registered Name", value: newUser.name },
+          { label: "Official Email", value: newUser.email, highlight: true },
+          { label: "Department", value: newUser.department || "General" },
+          { label: "Verification Status", value: "Pending Confirmation" }
+        ],
+        noteText: "If you did not register for this account, please ignore this email or notify IT Helpdesk at ithelpdesk@psgroup.in.",
+        actionUrl: verificationUrl,
+        actionText: "Confirm Registration & Activate Account"
+      });
+
+      await sendEmailNotification(
+        cleanEmail,
+        "[Account Verification] Confirm Your PS Group Portal Registration",
+        `Welcome to PS Group Meeting Portal!\n\nPlease confirm your registration by clicking the following link:\n${verificationUrl}\n\nThank you,\nPS Group IT Helpdesk`,
+        "Normal",
+        "account-verification",
+        undefined,
+        emailDraft.html
+      );
+    } catch (mailErr) {
+      console.warn("Failed to dispatch registration confirmation email:", mailErr);
+    }
+
     res.status(201).json({
-      message: "Registration successful! Your account is pending administrator approval.",
+      message: "Registration initiated! A verification confirmation link has been sent to your @psgroup.in email address. Please check your inbox and click the link to activate your account.",
       user: {
         uid: newUser.uid,
         email: newUser.email,
         name: newUser.name,
         role: newUser.role,
         isApproved: newUser.isApproved,
+        emailVerified: newUser.emailVerified,
       },
+    });
+  });
+
+  // Verify email confirmation endpoint
+  app.post("/api/auth/verify-email", (req, res) => {
+    const { email, token } = req.body;
+
+    if (!email || !token) {
+      return res.status(400).json({ error: "Email and verification token are required." });
+    }
+
+    const dbObj = getDatabase();
+    const cleanEmail = email.toLowerCase().trim();
+    const user = dbObj.users.find((u) => u.email.toLowerCase() === cleanEmail);
+
+    if (!user) {
+      return res.status(404).json({ error: "User account not found." });
+    }
+
+    if (user.emailVerified) {
+      return res.json({
+        message: "Your email is already verified. You can log in directly.",
+        email: user.email
+      });
+    }
+
+    if (user.verificationToken !== token) {
+      return res.status(400).json({ error: "Invalid or expired verification token." });
+    }
+
+    user.emailVerified = true;
+    user.isApproved = true;
+    delete user.verificationToken;
+    saveDatabase(dbObj);
+
+    res.json({
+      message: "Email successfully verified! Your account is active and you can now log in.",
+      email: user.email
+    });
+  });
+
+  // Forgot password endpoint: generates reset token and emails @psgroup.in
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: "Please enter your official email address." });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    if (!cleanEmail.endsWith("@psgroup.in")) {
+      return res.status(400).json({
+        error: "Password reset is restricted to official @psgroup.in email addresses only."
+      });
+    }
+
+    const dbObj = getDatabase();
+    let user = dbObj.users.find((u) => u.email.toLowerCase() === cleanEmail);
+
+    if (!user) {
+      // If user registered via Firebase Auth client-side only, create record to track reset
+      user = {
+        uid: "user-" + crypto.randomUUID(),
+        email: cleanEmail,
+        passwordHash: hashPassword(crypto.randomBytes(8).toString("hex")),
+        name: cleanEmail.split("@")[0].replace(/\./g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+        role: "User",
+        isApproved: true,
+        emailVerified: true,
+        createdAt: new Date().toISOString()
+      };
+      dbObj.users.push(user);
+    }
+
+    const resetToken = crypto.randomBytes(24).toString("hex");
+    user.resetPasswordToken = resetToken;
+    user.resetPasswordExpires = Date.now() + 3600000; // 1 hour validity
+    saveDatabase(dbObj);
+
+    const protocol = req.headers["x-forwarded-proto"] || req.protocol || "http";
+    const host = req.headers["x-forwarded-host"] || req.headers.host;
+    const origin = `${protocol}://${host}`;
+    const resetUrl = `${origin}/?action=reset-password&token=${resetToken}&email=${encodeURIComponent(cleanEmail)}`;
+
+    try {
+      const emailDraft = buildStructuredEmailDraft({
+        title: "Password Reset Request",
+        badgeText: "SECURITY NOTICE",
+        badgeBg: "#e11d48",
+        recipientName: user.name,
+        summaryText: "We received a request to reset the password for your PS Group Meeting Room Portal account. Click the button below to set a new password. This link will expire in 1 hour.",
+        details: [
+          { label: "Account Email", value: user.email, highlight: true },
+          { label: "Requested At", value: new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) },
+          { label: "Link Expiry", value: "1 Hour from dispatch" }
+        ],
+        noteText: "If you did not request a password reset, you can safely ignore this email. Your existing password will remain unchanged.",
+        actionUrl: resetUrl,
+        actionText: "Reset Your Password"
+      });
+
+      await sendEmailNotification(
+        cleanEmail,
+        "[Password Reset] PS Group Meeting Portal",
+        `You requested a password reset for your PS Group account.\n\nPlease reset your password using the following link:\n${resetUrl}\n\nThis link is valid for 1 hour.\n\nPS Group IT Operations`,
+        "High",
+        "password-reset",
+        undefined,
+        emailDraft.html
+      );
+    } catch (mailErr) {
+      console.warn("Failed to dispatch password reset email:", mailErr);
+    }
+
+    res.json({
+      message: `Password reset link has been mailed to ${cleanEmail}. Please check your inbox and follow the instructions.`
+    });
+  });
+
+  // Reset password with token endpoint
+  app.post("/api/auth/reset-password", (req, res) => {
+    const { email, token, newPassword } = req.body;
+
+    if (!email || !token || !newPassword) {
+      return res.status(400).json({ error: "Email, reset token, and new password are required." });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: "Password must be at least 6 characters long." });
+    }
+
+    const dbObj = getDatabase();
+    const cleanEmail = email.toLowerCase().trim();
+    const user = dbObj.users.find((u) => u.email.toLowerCase() === cleanEmail);
+
+    if (!user) {
+      return res.status(404).json({ error: "User account not found." });
+    }
+
+    if (!user.resetPasswordToken || user.resetPasswordToken !== token) {
+      return res.status(400).json({ error: "Invalid or expired password reset token." });
+    }
+
+    if (user.resetPasswordExpires && Date.now() > user.resetPasswordExpires) {
+      return res.status(400).json({ error: "Password reset link has expired. Please request a new one." });
+    }
+
+    user.passwordHash = hashPassword(newPassword);
+    delete user.resetPasswordToken;
+    delete user.resetPasswordExpires;
+    user.emailVerified = true;
+    user.isApproved = true;
+    saveDatabase(dbObj);
+
+    res.json({
+      message: "Your password has been successfully updated! You can now log in with your new password."
     });
   });
 
@@ -1020,10 +1174,17 @@ async function startServer() {
       return res.status(400).json({ error: "Invalid email or password" });
     }
 
-    // Check approval status dynamically from database
-    if (!user.isApproved) {
+    // Check email verification if required
+    if (user.emailVerified === false) {
       return res.status(403).json({
-        error: "Your account has not been approved yet. Please wait for an administrator to approve your registration.",
+        error: "Please confirm your registration via the verification link sent to your @psgroup.in email address before logging in.",
+      });
+    }
+
+    // Check approval status dynamically from database
+    if (user.isApproved === false) {
+      return res.status(403).json({
+        error: "Your account is pending approval. Please wait for an administrator to approve your registration.",
       });
     }
 
@@ -1042,6 +1203,7 @@ async function startServer() {
         name: user.name,
         role: user.role,
         isApproved: user.isApproved,
+        emailVerified: user.emailVerified ?? true,
       },
     });
   });
@@ -1264,20 +1426,19 @@ async function startServer() {
       confirmDraft.html
     ).catch(() => {});
 
-    // 2. If IT Support is required, notify it@psgroup.in
+    // 2. If IT Support is required, notify it@psgroup.in with booking details but NOT agenda
     if ((newBooking as any).itSupportRequired) {
-      const itSubject = `[IT Support Request] ${room.name} - ${(newBooking as any).reason || "Corporate Meeting"} (${date} at ${startTime})`;
+      const itSubject = `IT Support Required - ${room.name} (${date} at ${startTime})`;
       const itDraft = buildStructuredEmailDraft({
-        title: "IT Support & Audio-Visual Setup Request",
+        title: "IT Support Required",
         badgeText: "IT SUPPORT REQ",
         badgeBg: "#2563eb",
         badgeColor: "#ffffff",
         recipientName: "PS Group IT Support Team (it@psgroup.in)",
-        summaryText: "An IT Support and Audio-Visual setup request has been logged for an upcoming corporate meeting at PS Group. Please ensure all required AV technology, display connectivity, and conferencing equipment are tested and ready prior to meeting start time.",
+        summaryText: "An IT Support and Audio-Visual setup request has been logged for an upcoming corporate room reservation at PS Group. Please ensure all required AV technology, display connectivity, and conferencing equipment are tested and ready prior to meeting start time.",
         details: [
           { label: "Meeting Room", value: room.name, highlight: true },
           { label: "Date & Time Slot", value: `${date} at ${startTime} (${dur} mins)` },
-          { label: "Meeting Agenda", value: (newBooking as any).reason || "Corporate Meeting" },
           { label: "Organizer Name", value: bookerName },
           { label: "Organizer Email", value: bookerEmail },
           { label: "Attendees Count", value: attendeesCount ? `${attendeesCount} participants` : "N/A" }
@@ -1294,6 +1455,7 @@ async function startServer() {
         {
           ...newBooking,
           roomName: room.name,
+          reason: "IT Support Required", // Do not expose confidential meeting agenda
         },
         itDraft.html
       ).catch(() => {});
@@ -1301,9 +1463,9 @@ async function startServer() {
 
     // 3. If F&B is required, notify hospitality@psgroup.in
     if ((newBooking as any).fbRequired) {
-      const fbSubject = `[F&B & Hospitality Request] Catering Setup for ${room.name} (${date} at ${startTime})`;
+      const fbSubject = `F&B Required - Catering Setup for ${room.name} (${date} at ${startTime})`;
       const fbDraft = buildStructuredEmailDraft({
-        title: "Hospitality & F&B Catering Setup Request",
+        title: "F&B Required",
         badgeText: "F&B CATERING REQ",
         badgeBg: "#d97706",
         badgeColor: "#ffffff",
@@ -1312,7 +1474,6 @@ async function startServer() {
         details: [
           { label: "Meeting Room", value: room.name, highlight: true },
           { label: "Date & Time Slot", value: `${date} at ${startTime} (${dur} mins)` },
-          { label: "Meeting Agenda", value: (newBooking as any).reason || "Corporate Meeting" },
           { label: "Organizer Name", value: bookerName },
           { label: "Organizer Email", value: bookerEmail },
           { label: "Attendees Count (Catering)", value: attendeesCount ? `${attendeesCount} attendees` : "1 attendee" }
@@ -1329,6 +1490,7 @@ async function startServer() {
         {
           ...newBooking,
           roomName: room.name,
+          reason: "F&B Required",
         },
         fbDraft.html
       ).catch(() => {});
@@ -1356,8 +1518,13 @@ async function startServer() {
     const targetRoom = booking ? dbObj.rooms.find((r) => r.roomId === booking.roomId) : null;
     const roomName = targetRoom ? targetRoom.name : (booking?.roomId || "Meeting Room");
 
-    // Send cancellation notification email
-    const recipient = "supratik@psgroup.in";
+    // Send cancellation notification email to booker and participants
+    const recipientList = [
+      booking?.bookerEmail,
+      ...((booking as any)?.participantEmails || [])
+    ].filter((e): e is string => Boolean(e && typeof e === "string"));
+
+    const primaryRecipients = recipientList.length > 0 ? recipientList : [ADMIN_ALERT_EMAIL];
     const subject = `[RESERVATION CANCELLED] ${roomName} - #${bookingId}`;
 
     const cancelDraft = buildStructuredEmailDraft({
@@ -1376,7 +1543,7 @@ async function startServer() {
       noteText: "If this cancellation was unintended, you can create a new reservation anytime through the Meeting Room Portal."
     });
 
-    sendEmailNotification(recipient, subject, cancelDraft.text, "Normal", bookingId, undefined, cancelDraft.html).catch(() => {});
+    sendEmailNotification(primaryRecipients, subject, cancelDraft.text, "Normal", bookingId, undefined, cancelDraft.html).catch(() => {});
 
     return res.json({
       message: "Meeting room reservation cancelled successfully.",

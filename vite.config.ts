@@ -11,6 +11,31 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    build: {
+      sourcemap: false,
+      minify: 'terser' as const,
+      terserOptions: {
+        compress: {
+          drop_console: false, // Managed dynamically by security shield banner
+          drop_debugger: true,
+          pure_funcs: ['console.debug', 'console.dir'],
+        },
+        mangle: {
+          toplevel: true,
+        },
+        format: {
+          comments: false, // Strip all comments to prevent inspection
+        },
+      },
+      rollupOptions: {
+        output: {
+          compact: true,
+          entryFileNames: 'assets/[hash].js',
+          chunkFileNames: 'assets/[hash].js',
+          assetFileNames: 'assets/[hash].[ext]',
+        },
+      },
+    },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modify—file watching is disabled to prevent flickering during agent edits.

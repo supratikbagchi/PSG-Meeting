@@ -114,61 +114,191 @@ async function addAdminActivity(action: string, details: string): Promise<void> 
   }
 }
 
+// Session Cookie Helpers
+function setSessionCookie(token: string, user: User) {
+  if (typeof document === "undefined") return;
+  try {
+    const expires = new Date(Date.now() + 7 * 864e5).toUTCString();
+    document.cookie = `ps_booking_token=${encodeURIComponent(token)}; expires=${expires}; path=/; SameSite=Lax`;
+    document.cookie = `ps_booking_user=${encodeURIComponent(JSON.stringify(user))}; expires=${expires}; path=/; SameSite=Lax`;
+  } catch (e) {
+    console.warn("Cookie set error:", e);
+  }
+}
+
+function getSessionCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  try {
+    const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+    return match ? decodeURIComponent(match[2]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearSessionCookies() {
+  if (typeof document === "undefined") return;
+  try {
+    document.cookie = "ps_booking_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    document.cookie = "ps_booking_user=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+  } catch (e) {
+    console.warn("Cookie clear error:", e);
+  }
+}
+
 export const apiService = {
   // ==================== AUTH SERVICE ====================
 
   /**
    * Send a password reset email to an already registered address
    */
-  async sendPasswordReset(email: string): Promise<void> {
+  async sendPasswordReset(email: string): Promise<string> {
     await ensureDb();
     const formattedEmail = email.toLowerCase().trim();
     if (!formattedEmail) {
       throw new Error("Email address is required.");
     }
-
-    // Check if user exists in the Firestore database to make sure it's an "already registered email address"
-    const usersRef = collection(db, "users");
-    const q = query(usersRef, where("email", "==", formattedEmail));
-    const querySnapshot = await runFirestore(
-      () => getDocs(q),
-      OperationType.GET,
-      "users"
-    );
-
-    if (querySnapshot.empty) {
-      throw new Error("This email is not registered in our database.");
+    if (!formattedEmail.endsWith("@psgroup.in")) {
+      throw new Error("Password reset is restricted to registered @psgroup.in corporate accounts.");
     }
 
+    // Call server forgot-password endpoint for reliable email dispatch
+    let serverSuccess = false;
+    let returnMessage = `Password reset link has been dispatched to ${formattedEmail}. Please check your inbox.`;
+    try {
+      const response = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: formattedEmail })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        serverSuccess = true;
+        returnMessage = data.message || returnMessage;
+      } else if (data.error) {
+        throw new Error(data.error);
+      }
+    } catch (apiErr: any) {
+      if (!serverSuccess) {
+        console.warn("Server forgot-password API error, attempting Firebase fallback:", apiErr);
+      }
+    }
+
+    // Also attempt Firebase Auth reset
     try {
       await sendPasswordResetEmail(auth, formattedEmail);
-    } catch (err: any) {
-      throw new Error(err.message || "Failed to send password reset email.");
+    } catch (fbErr: any) {
+      // If server succeeded, ignore Firebase reset errors
+      if (!serverSuccess) {
+        throw new Error(fbErr.message || "Failed to send password reset email.");
+      }
     }
+
+    return returnMessage;
   },
 
   /**
-   * Set user credentials in localStorage
+   * Reset password with reset token
+   */
+  async resetPasswordWithToken(email: string, token: string, newPassword: string): Promise<string> {
+    await ensureDb();
+    const formattedEmail = email.toLowerCase().trim();
+
+    const response = await fetch("/api/auth/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: formattedEmail, token, newPassword })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "Failed to reset password.");
+    }
+
+    // Update password in Firestore as well
+    try {
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("email", "==", formattedEmail));
+      const querySnapshot = await runFirestore(() => getDocs(q), OperationType.GET, "users");
+      if (!querySnapshot.empty) {
+        const docRef = querySnapshot.docs[0].ref;
+        const newHash = await hashPassword(newPassword);
+        await runFirestore(
+          () => setDoc(docRef, { passwordHash: newHash, emailVerified: true, isApproved: true }, { merge: true }),
+          OperationType.WRITE,
+          "users"
+        );
+      }
+    } catch (fsErr) {
+      console.warn("Could not sync new password to Firestore:", fsErr);
+    }
+
+    return data.message || "Your password has been updated successfully.";
+  },
+
+  /**
+   * Verify email via confirmation token
+   */
+  async verifyEmail(email: string, token: string): Promise<string> {
+    await ensureDb();
+    const formattedEmail = email.toLowerCase().trim();
+
+    const response = await fetch("/api/auth/verify-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: formattedEmail, token })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "Failed to verify email address.");
+    }
+
+    // Update Firestore user emailVerified
+    try {
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("email", "==", formattedEmail));
+      const querySnapshot = await runFirestore(() => getDocs(q), OperationType.GET, "users");
+      if (!querySnapshot.empty) {
+        const docRef = querySnapshot.docs[0].ref;
+        await runFirestore(
+          () => setDoc(docRef, { emailVerified: true, isApproved: true }, { merge: true }),
+          OperationType.WRITE,
+          "users"
+        );
+      }
+    } catch (fsErr) {
+      console.warn("Could not sync email verification to Firestore:", fsErr);
+    }
+
+    return data.message || "Email successfully verified.";
+  },
+
+  /**
+   * Set user credentials in localStorage and cookies
    */
   setSession(token: string, user: User) {
     localStorage.setItem("ps_booking_token", token);
     localStorage.setItem("ps_booking_user", JSON.stringify(user));
+    setSessionCookie(token, user);
   },
 
   /**
-   * Remove user credentials from localStorage
+   * Remove user credentials from localStorage and cookies
    */
   logout() {
     localStorage.removeItem("ps_booking_token");
     localStorage.removeItem("ps_booking_user");
+    clearSessionCookies();
     signOut(auth).catch(err => console.error("Firebase SignOut error:", err));
   },
 
   /**
-   * Retrieve cached user details
+   * Retrieve cached user details from localStorage or cookies
    */
   getCachedUser(): User | null {
-    const userJson = localStorage.getItem("ps_booking_user");
+    let userJson = localStorage.getItem("ps_booking_user");
+    if (!userJson) {
+      userJson = getSessionCookie("ps_booking_user");
+    }
     if (!userJson) return null;
     try {
       return JSON.parse(userJson);
@@ -330,50 +460,73 @@ export const apiService = {
       throw new Error("Department field is mandatory.");
     }
 
-    // Standard Firebase Auth create user
-    let userCredential;
+    // Call server register API for backend persistence and verification email dispatch
+    let serverMessage = "Registration initiated! A verification confirmation link has been sent to your @psgroup.in email address. Please check your inbox and click the link to activate your account.";
     try {
-      userCredential = await createUserWithEmailAndPassword(auth, formattedEmail, password);
-    } catch (err: any) {
-      throw new Error(err.message || "Registration failed. Account may already exist.");
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: formattedEmail,
+          password,
+          name,
+          department: formattedDepartment
+        })
+      });
+      const data = await response.json();
+      if (!response.ok && data.error && !data.error.includes("already exists")) {
+        throw new Error(data.error);
+      }
+      if (data.message) {
+        serverMessage = data.message;
+      }
+    } catch (apiErr: any) {
+      console.warn("Server registration notice:", apiErr);
     }
 
-    const firebaseUser = userCredential.user;
-
-    // Trigger email verification
+    // Standard Firebase Auth create user (if not already existing in Firebase)
+    let firebaseUser: any = null;
     try {
-      await sendEmailVerification(firebaseUser);
+      const userCredential = await createUserWithEmailAndPassword(auth, formattedEmail, password);
+      firebaseUser = userCredential.user;
+      try {
+        await sendEmailVerification(firebaseUser);
+      } catch (e) {
+        // Firebase verification fallback
+      }
     } catch (err: any) {
-      console.error("Failed to send verification email:", err);
+      // If Firebase Auth complains user exists, that's fine if server created or vice versa
+      firebaseUser = { uid: "user-" + Math.random().toString(36).substring(2, 9), email: formattedEmail };
     }
 
     const pwdHash = await hashPassword(password);
 
-    // Create profile doc in Firestore users
+    // Create profile doc in Firestore users with emailVerified: false
     const newUser: User = {
-      uid: firebaseUser.uid,
+      uid: firebaseUser.uid || "user-" + Math.random().toString(36).substring(2, 9),
       email: formattedEmail,
       passwordHash: pwdHash,
       name,
       role: "User",
       isApproved: true,
+      emailVerified: false,
       createdAt: new Date().toISOString(),
       department: formattedDepartment
     };
 
-    await runFirestore(
-      () => setDoc(doc(db, "users", firebaseUser.uid), newUser),
-      OperationType.WRITE,
-      "users"
-    );
-
-    const token = `jwt-mock-${firebaseUser.uid}`;
-    const userWithVerify = { ...newUser, emailVerified: false };
-    this.setSession(token, userWithVerify);
+    try {
+      await runFirestore(
+        () => setDoc(doc(db, "users", newUser.uid), newUser),
+        OperationType.WRITE,
+        "users"
+      );
+    } catch (fsErr) {
+      console.warn("Could not write initial user doc to Firestore:", fsErr);
+    }
 
     return {
-      message: "Registration successful. Please check your inbox to verify your account before booking.",
-      user: userWithVerify
+      message: serverMessage,
+      user: newUser
     };
   },
 
@@ -835,9 +988,10 @@ export const apiService = {
 
       // Also queue to Firebase "mail" collection (for Firebase "Trigger Email" Extension)
       const mailDocId = "mail-" + Math.random().toString(36).substr(2, 9);
+      const mailRecipients = [newBooking.bookerEmail, ...(newBooking.participantEmails || [])].filter((e): e is string => Boolean(e));
       await runFirestore(
         () => setDoc(doc(db, "mail", mailDocId), {
-          to: ["supratik@psgroup.in"],
+          to: mailRecipients.length > 0 ? mailRecipients : ["admin@psgroup.in"],
           message: {
             subject: emailSubject,
             text: emailBody,
@@ -854,7 +1008,7 @@ export const apiService = {
     }
 
     return {
-      message: `Your meeting room reservation is confirmed! Automated server email notification status (supratik@psgroup.in): ${emailNote || "Recorded in server records."}`,
+      message: `Your meeting room reservation is confirmed! Confirmation email and calendar invite dispatched to ${newBooking.bookerEmail || "organizer"}.`,
       booking: newBooking
     };
   },
