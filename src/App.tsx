@@ -290,6 +290,10 @@ export default function App() {
       alert("Please enter a valid email address.");
       return;
     }
+    if (!email.endsWith("@psgroup.in")) {
+      alert("Internal participant emails must be official @psgroup.in email addresses.");
+      return;
+    }
     if (participantEmails.includes(email)) {
       setInputParticipantEmail("");
       return;

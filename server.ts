@@ -40,7 +40,13 @@ interface Booking {
   createdAt: string;
   bookerName?: string;
   bookerEmail?: string;
+  department?: string;
   attendeesCount?: number;
+  reason?: string;
+  participantEmails?: string[];
+  itSupportRequired?: boolean;
+  fbRequired?: boolean;
+  meetingType?: string;
 }
 
 interface NotificationLog {
@@ -478,7 +484,9 @@ async function sendEmailNotification(
   }
 
   if (validRecipients.length === 0) {
-    validRecipients.push(adminEmail);
+    status = "failed";
+    statusMessage = "No valid recipient email addresses provided.";
+    return { status, message: statusMessage };
   }
 
   const primaryRecipient = validRecipients[0];
@@ -504,7 +512,7 @@ async function sendEmailNotification(
       const resend = new Resend(process.env.RESEND_API_KEY);
       const fromAddress = process.env.RESEND_FROM_EMAIL || "PS Group Meeting Portal <onboarding@resend.dev>";
       const isSandboxFrom = fromAddress.includes("resend.dev");
-      const verifiedTestEmail = process.env.RESEND_TEST_EMAIL || adminEmail;
+      const verifiedTestEmail = process.env.RESEND_TEST_EMAIL || adminEmail || "supratik@psgroup.in";
 
       let resendAttachments: any[] = [];
       if (bookingData || (bookingId && bookingId !== "general" && bookingId !== "account-approval")) {
@@ -517,7 +525,7 @@ async function sendEmailNotification(
         });
       }
 
-      // If in Resend Sandbox mode (onboarding@resend.dev), Resend restricts sending strictly to the account owner's email address
+      // If sending from onboarding@resend.dev (Resend sandbox default), Resend restricts sending strictly to the account owner's email address
       const isSendingToVerifiedOnly = validRecipients.length === 1 && validRecipients[0].toLowerCase() === verifiedTestEmail.toLowerCase();
       
       let targetTo: string[];
@@ -527,7 +535,7 @@ async function sendEmailNotification(
       let isSandboxRouted = false;
 
       if (isSandboxFrom && !isSendingToVerifiedOnly) {
-        // Route sandbox test safely directly to the verified email to avoid Resend validation error
+        // Route sandbox test safely directly to the verified email to avoid Resend 422 validation_error
         targetTo = [verifiedTestEmail];
         finalSubject = `[Resend Sandbox -> ${recipientDisplayString}] ${subject}`;
         finalBody = `[NOTE: Resend Sandbox Mode Active - Intended Recipient(s): ${recipientDisplayString}]\n\n` + body;
@@ -548,20 +556,20 @@ async function sendEmailNotification(
 
       if (resendResponse.error) {
         const errMsg = resendResponse.error.message || "";
-        // If still blocked by domain validation on a custom domain, retry fallback to verified testing email
-        if (!isSandboxRouted && (errMsg.toLowerCase().includes("testing emails") || errMsg.toLowerCase().includes("verify a domain"))) {
+        // If domain is unverified in Resend free tier, attempt fallback dispatch to verified account email
+        if (!isSandboxRouted && (errMsg.toLowerCase().includes("testing emails") || errMsg.toLowerCase().includes("verify a domain") || errMsg.toLowerCase().includes("validation_error"))) {
           const fallbackRes = await resend.emails.send({
             from: "PS Group Meeting Portal <onboarding@resend.dev>",
             to: [verifiedTestEmail],
-            subject: `[Resend Sandbox -> ${recipientDisplayString}] ${subject}`,
-            text: `[NOTE: Resend Sandbox Mode Active - Intended Recipient(s): ${recipientDisplayString}]\n\n` + body,
-            html: `<div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:10px 14px;margin-bottom:16px;font-family:sans-serif;font-size:12px;color:#92400e;"><strong>Resend Sandbox Mode:</strong> Intended recipient(s): <code>${recipientDisplayString}</code></div>` + htmlBody,
+            subject: `[Resend Delivery Note -> ${recipientDisplayString}] ${subject}`,
+            text: `[Intended Recipient(s): ${recipientDisplayString}]\n\n` + body,
+            html: `<div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:10px 14px;margin-bottom:16px;font-family:sans-serif;font-size:12px;color:#92400e;"><strong>Resend Delivery Note:</strong> Intended recipient(s): <code>${recipientDisplayString}</code>. (Domain verification recommended at resend.com/domains)</div>` + htmlBody,
             attachments: resendAttachments.length > 0 ? resendAttachments : undefined,
           });
 
           if (!fallbackRes.error) {
             status = "success";
-            statusMessage = `Delivered via Resend Sandbox to ${verifiedTestEmail} (Intended: ${recipientDisplayString}) [ID: ${fallbackRes.data?.id}]`;
+            statusMessage = `Delivered to verified email ${verifiedTestEmail} for ${recipientDisplayString} [ID: ${fallbackRes.data?.id}]`;
           } else {
             throw new Error(fallbackRes.error.message);
           }
@@ -1057,21 +1065,12 @@ async function startServer() {
     }
 
     const dbObj = getDatabase();
-    let user = dbObj.users.find((u) => u.email.toLowerCase() === cleanEmail);
+    const user = dbObj.users.find((u) => u.email.toLowerCase() === cleanEmail);
 
     if (!user) {
-      // If user registered via Firebase Auth client-side only, create record to track reset
-      user = {
-        uid: "user-" + crypto.randomUUID(),
-        email: cleanEmail,
-        passwordHash: hashPassword(crypto.randomBytes(8).toString("hex")),
-        name: cleanEmail.split("@")[0].replace(/\./g, " ").replace(/\b\w/g, c => c.toUpperCase()),
-        role: "User",
-        isApproved: true,
-        emailVerified: true,
-        createdAt: new Date().toISOString()
-      };
-      dbObj.users.push(user);
+      return res.status(404).json({
+        error: "This email address is not registered in the system. Please register first."
+      });
     }
 
     const resetToken = crypto.randomBytes(24).toString("hex");
@@ -1326,7 +1325,7 @@ async function startServer() {
   });
 
   app.post("/api/bookings", async (req: any, res) => {
-    const { roomId, date, startTime, duration, attendeesCount, bookerName, bookerEmail, clientDate, clientTime } = req.body;
+    const { roomId, date, startTime, duration, attendeesCount, bookerName, bookerEmail, participantEmails, reason, itSupportRequired, fbRequired, clientDate, clientTime } = req.body;
 
     if (!roomId || !date || !startTime || !duration || !bookerName || !bookerEmail) {
       return res.status(400).json({ error: "Missing required booking details (room, date, start time, duration, name, or email)" });
@@ -1347,6 +1346,17 @@ async function startServer() {
     if (!room) {
       return res.status(404).json({ error: "Requested meeting room does not exist" });
     }
+
+    // Clean and validate participant emails to ensure all participants have @psgroup.in domain
+    const rawParticipants = Array.isArray(participantEmails)
+      ? participantEmails
+      : (typeof participantEmails === "string" ? participantEmails.split(/[,;\s]+/) : []);
+
+    const validPsgroupParticipants = rawParticipants
+      .map((e: any) => (typeof e === "string" ? e.trim().toLowerCase() : ""))
+      .filter((e: string) => e && e.includes("@") && e.endsWith("@psgroup.in") && e !== bookerEmail.toLowerCase());
+
+    const uniqueParticipants = Array.from(new Set(validPsgroupParticipants));
 
     // Check room capacity limit
     if (attendeesCount && room.capacity < parseInt(attendeesCount)) {
@@ -1384,13 +1394,18 @@ async function startServer() {
       bookerName,
       bookerEmail,
       attendeesCount: attendeesCount ? parseInt(attendeesCount) : undefined,
+      participantEmails: uniqueParticipants,
+      reason: reason || "Corporate Meeting",
+      itSupportRequired: !!itSupportRequired,
+      fbRequired: !!fbRequired,
       createdAt: new Date().toISOString(),
     };
 
     dbObj.bookings.push(newBooking);
     saveDatabase(dbObj);
 
-    // 1. Send Booking Confirmation email to Organizer (and participants)
+    // 1. Send Booking Confirmation email & Calendar Invite (.ics) to Organizer and @psgroup.in participants
+    const meetingRecipients = Array.from(new Set([bookerEmail, ...uniqueParticipants]));
     const subject = `[Booking Confirmed] ${room.name} on ${date} at ${startTime}`;
     const confirmDraft = buildStructuredEmailDraft({
       title: "Meeting Room Reservation Confirmed",
@@ -1402,18 +1417,19 @@ async function startServer() {
       details: [
         { label: "Meeting Room", value: room.name, highlight: true },
         { label: "Date & Time Slot", value: `${date} at ${startTime} (${dur} mins)` },
-        { label: "Meeting Agenda", value: (newBooking as any).reason || "Corporate Meeting" },
+        { label: "Meeting Agenda", value: newBooking.reason || "Corporate Meeting" },
         { label: "Organizer Name", value: bookerName },
         { label: "Organizer Email", value: bookerEmail },
+        { label: "Internal Participants", value: uniqueParticipants.length > 0 ? uniqueParticipants.join(", ") : "None" },
         { label: "Attendees Count", value: attendeesCount ? `${attendeesCount} participants` : "N/A" },
-        { label: "IT Support Required", value: (newBooking as any).itSupportRequired ? "Yes (Requested)" : "No" },
-        { label: "F&B Required", value: (newBooking as any).fbRequired ? "Yes (Requested)" : "No" }
+        { label: "IT Support Required", value: newBooking.itSupportRequired ? "Yes (Requested)" : "No" },
+        { label: "F&B Required", value: newBooking.fbRequired ? "Yes (Requested)" : "No" }
       ],
       noteText: "An iCalendar (.ics) event file is attached. Opening the attachment will automatically save this reservation to your Outlook or Google calendar."
     });
 
     sendEmailNotification(
-      [bookerEmail, ...((newBooking as any).participantEmails || [])],
+      meetingRecipients,
       subject,
       confirmDraft.text,
       "Normal",
@@ -1421,13 +1437,13 @@ async function startServer() {
       {
         ...newBooking,
         roomName: room.name,
-        reason: (newBooking as any).reason || subject,
+        reason: newBooking.reason || subject,
       },
       confirmDraft.html
     ).catch(() => {});
 
     // 2. If IT Support is required, notify it@psgroup.in with booking details but NOT agenda
-    if ((newBooking as any).itSupportRequired) {
+    if (newBooking.itSupportRequired) {
       const itSubject = `IT Support Required - ${room.name} (${date} at ${startTime})`;
       const itDraft = buildStructuredEmailDraft({
         title: "IT Support Required",
@@ -1441,28 +1457,29 @@ async function startServer() {
           { label: "Date & Time Slot", value: `${date} at ${startTime} (${dur} mins)` },
           { label: "Organizer Name", value: bookerName },
           { label: "Organizer Email", value: bookerEmail },
-          { label: "Attendees Count", value: attendeesCount ? `${attendeesCount} participants` : "N/A" }
+          { label: "Attendees Count", value: attendeesCount ? `${attendeesCount} participants` : "N/A" },
+          { label: "IT Support Status", value: "AV & Connectivity Setup Requested" }
         ],
         noteText: "Action Required for IT Team: Please test projector/TV screen display, HDMI dongles & adapters, conference speakerphone/microphones, and video conference links prior to the meeting start time."
       });
 
       sendEmailNotification(
         "it@psgroup.in",
-        itSubject,
+        "IT Support Required",
         itDraft.text,
         "High",
         newBooking.bookingId,
         {
           ...newBooking,
           roomName: room.name,
-          reason: "IT Support Required", // Do not expose confidential meeting agenda
+          reason: "IT Support Required", // Agenda hidden for IT Support
         },
         itDraft.html
       ).catch(() => {});
     }
 
     // 3. If F&B is required, notify hospitality@psgroup.in
-    if ((newBooking as any).fbRequired) {
+    if (newBooking.fbRequired) {
       const fbSubject = `F&B Required - Catering Setup for ${room.name} (${date} at ${startTime})`;
       const fbDraft = buildStructuredEmailDraft({
         title: "F&B Required",
@@ -1483,14 +1500,14 @@ async function startServer() {
 
       sendEmailNotification(
         "hospitality@psgroup.in",
-        fbSubject,
+        "F&B Support Required",
         fbDraft.text,
         "High",
         newBooking.bookingId,
         {
           ...newBooking,
           roomName: room.name,
-          reason: "F&B Required",
+          reason: "F&B Support Required",
         },
         fbDraft.html
       ).catch(() => {});
@@ -1518,32 +1535,45 @@ async function startServer() {
     const targetRoom = booking ? dbObj.rooms.find((r) => r.roomId === booking.roomId) : null;
     const roomName = targetRoom ? targetRoom.name : (booking?.roomId || "Meeting Room");
 
-    // Send cancellation notification email to booker and participants
-    const recipientList = [
-      booking?.bookerEmail,
-      ...((booking as any)?.participantEmails || [])
-    ].filter((e): e is string => Boolean(e && typeof e === "string"));
+    // Extract organizer and participant emails ending with @psgroup.in
+    const bookerEmail = booking?.bookerEmail;
+    const rawParticipants = Array.isArray(booking?.participantEmails) ? booking.participantEmails : [];
+    const validParticipants = rawParticipants
+      .map((e: any) => (typeof e === "string" ? e.trim().toLowerCase() : ""))
+      .filter((e: string) => e && e.endsWith("@psgroup.in") && e !== bookerEmail?.toLowerCase());
 
-    const primaryRecipients = recipientList.length > 0 ? recipientList : [ADMIN_ALERT_EMAIL];
-    const subject = `[RESERVATION CANCELLED] ${roomName} - #${bookingId}`;
+    const cancelRecipients: string[] = [];
+    if (bookerEmail && bookerEmail.includes("@")) {
+      cancelRecipients.push(bookerEmail);
+    }
+    for (const p of validParticipants) {
+      if (!cancelRecipients.includes(p)) {
+        cancelRecipients.push(p);
+      }
+    }
 
-    const cancelDraft = buildStructuredEmailDraft({
-      title: "Meeting Room Reservation Cancelled",
-      badgeText: "CANCELLED",
-      badgeBg: "#ef4444",
-      recipientName: booking?.bookerName || "Employee",
-      summaryText: "This email confirms that your meeting room reservation has been cancelled. The time slot has been released back into the portal for other colleagues to book.",
-      details: [
-        { label: "Reservation ID", value: bookingId },
-        { label: "Meeting Room", value: roomName, highlight: true },
-        { label: "Date & Released Time", value: `${booking?.date || "N/A"} at ${booking?.startTime || "N/A"}` },
-        { label: "Host / Booker", value: `${booking?.bookerName || "Employee"} (${booking?.bookerEmail || "N/A"})` },
-        { label: "Cancellation Timestamp", value: new Date().toLocaleString() }
-      ],
-      noteText: "If this cancellation was unintended, you can create a new reservation anytime through the Meeting Room Portal."
-    });
+    // Send cancellation notification email strictly to organizer and participants ONLY (not admin)
+    if (cancelRecipients.length > 0) {
+      const subject = `[RESERVATION CANCELLED] ${roomName} - ${booking?.date || ""} ${booking?.startTime || ""}`;
 
-    sendEmailNotification(primaryRecipients, subject, cancelDraft.text, "Normal", bookingId, undefined, cancelDraft.html).catch(() => {});
+      const cancelDraft = buildStructuredEmailDraft({
+        title: "Meeting Room Reservation Cancelled",
+        badgeText: "CANCELLED",
+        badgeBg: "#ef4444",
+        recipientName: booking?.bookerName || "Employee",
+        summaryText: "This email confirms that your meeting room reservation has been cancelled. The time slot has been released back into the portal for other colleagues to book.",
+        details: [
+          { label: "Reservation ID", value: bookingId },
+          { label: "Meeting Room", value: roomName, highlight: true },
+          { label: "Date & Released Time", value: `${booking?.date || "N/A"} at ${booking?.startTime || "N/A"}` },
+          { label: "Host / Organizer", value: `${booking?.bookerName || "Employee"} (${booking?.bookerEmail || "N/A"})` },
+          { label: "Cancellation Timestamp", value: new Date().toLocaleString() }
+        ],
+        noteText: "If this cancellation was unintended, you can create a new reservation anytime through the Meeting Room Portal."
+      });
+
+      sendEmailNotification(cancelRecipients, subject, cancelDraft.text, "Normal", bookingId, undefined, cancelDraft.html).catch(() => {});
+    }
 
     return res.json({
       message: "Meeting room reservation cancelled successfully.",

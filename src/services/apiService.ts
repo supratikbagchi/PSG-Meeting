@@ -162,36 +162,26 @@ export const apiService = {
       throw new Error("Password reset is restricted to registered @psgroup.in corporate accounts.");
     }
 
-    // Call server forgot-password endpoint for reliable email dispatch
-    let serverSuccess = false;
+    // Call server forgot-password endpoint (verifies registration)
     let returnMessage = `Password reset link has been dispatched to ${formattedEmail}. Please check your inbox.`;
-    try {
-      const response = await fetch("/api/auth/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: formattedEmail })
-      });
-      const data = await response.json();
-      if (response.ok) {
-        serverSuccess = true;
-        returnMessage = data.message || returnMessage;
-      } else if (data.error) {
-        throw new Error(data.error);
-      }
-    } catch (apiErr: any) {
-      if (!serverSuccess) {
-        console.warn("Server forgot-password API error, attempting Firebase fallback:", apiErr);
-      }
+    const response = await fetch("/api/auth/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: formattedEmail })
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "This email address is not registered in the system. Please register first.");
     }
 
-    // Also attempt Firebase Auth reset
+    returnMessage = data.message || returnMessage;
+
+    // Send password reset link from Firebase Auth as well
     try {
       await sendPasswordResetEmail(auth, formattedEmail);
     } catch (fbErr: any) {
-      // If server succeeded, ignore Firebase reset errors
-      if (!serverSuccess) {
-        throw new Error(fbErr.message || "Failed to send password reset email.");
-      }
+      console.warn("Firebase Auth password reset note:", fbErr?.message);
     }
 
     return returnMessage;
@@ -820,7 +810,9 @@ export const apiService = {
       newBooking.attendeesCount = Number(bookingDetails.attendeesCount);
     }
     if (bookingDetails.participantEmails && bookingDetails.participantEmails.length > 0) {
-      newBooking.participantEmails = bookingDetails.participantEmails.map(e => e.trim()).filter(Boolean);
+      newBooking.participantEmails = bookingDetails.participantEmails
+        .map(e => e.trim().toLowerCase())
+        .filter(e => e && e.endsWith("@psgroup.in"));
     }
 
     const cleanBooking = cleanFirestoreData(newBooking);
