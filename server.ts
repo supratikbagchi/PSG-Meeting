@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import { Resend } from "resend";
+import { buildCancellationEmail, buildHospitalityEmail, buildItHelpdeskEmail, buildStructuredEmailDraft, dispatchEmail, type CalendarMethod } from "./lib/mailer.js";
 import { createServer as createViteServer } from "vite";
 
 // Interfaces representing our database schema
@@ -194,248 +194,6 @@ function saveDatabase(db: DatabaseSchema) {
   }
 }
 
-// Helper function to generate iCalendar (.ics) content for meeting invites
-function generateIcsContent(
-  booking: {
-    bookingId?: string;
-    date?: string; // YYYY-MM-DD
-    startTime?: string; // HH:MM
-    duration?: number; // in minutes
-    roomName?: string;
-    roomId?: string;
-    reason?: string;
-    bookerName?: string;
-    bookerEmail?: string;
-    department?: string;
-  },
-  recipientEmail?: string
-): string {
-  const now = new Date();
-  const pad = (n: number) => (n < 10 ? "0" + n : "" + n);
-  const dtStamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}Z`;
-
-  const bookingDateStr = booking?.date || now.toISOString().split("T")[0];
-  const startTimeStr = booking?.startTime || "09:00";
-  const durationMins = Number(booking?.duration) || 60;
-
-  const [y, m, d] = bookingDateStr.split("-").map(Number);
-  const [h, min] = startTimeStr.split(":").map(Number);
-
-  const year = y || now.getFullYear();
-  const month = m || 1;
-  const day = d || 1;
-  const hour = h || 0;
-  const minute = min || 0;
-
-  // Format times with Asia/Kolkata timezone (IST: UTC+05:30)
-  const dtStart = `${year}${pad(month)}${pad(day)}T${pad(hour)}${pad(minute)}00`;
-
-  const totalEndMins = hour * 60 + minute + durationMins;
-  const endHour = Math.floor(totalEndMins / 60) % 24;
-  const endMinute = totalEndMins % 60;
-  const dayOffset = Math.floor(totalEndMins / 1440);
-
-  const endDateObj = new Date(year, month - 1, day + dayOffset);
-  const endYear = endDateObj.getFullYear();
-  const endMonth = endDateObj.getMonth() + 1;
-  const endDay = endDateObj.getDate();
-
-  const dtEnd = `${endYear}${pad(endMonth)}${pad(endDay)}T${pad(endHour)}${pad(endMinute)}00`;
-
-  const uid = (booking?.bookingId || "booking-" + Date.now()) + "@psgroup.in";
-  const summary = booking?.reason ? `Meeting: ${booking.reason}` : "Meeting Room Reservation";
-  const location = booking?.roomName || booking?.roomId || "PS Group Meeting Room";
-  const organizerName = booking?.bookerName || "PS Group Meeting Portal";
-
-  const rawOrgEmail = booking?.bookerEmail || "";
-  const organizerEmail = (rawOrgEmail && rawOrgEmail.includes("@") && !rawOrgEmail.includes("example.com") && !rawOrgEmail.includes("company.com"))
-    ? rawOrgEmail.trim()
-    : "supratik@psgroup.in";
-
-  const rawAttEmail = recipientEmail || "";
-  const attendeeEmail = (rawAttEmail && rawAttEmail.includes("@") && !rawAttEmail.includes("example.com") && !rawAttEmail.includes("company.com"))
-    ? rawAttEmail.trim()
-    : "supratik@psgroup.in";
-
-  const cleanStr = (str: string) => (str || "").replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
-
-  const description = cleanStr(
-    `Meeting Room Reservation\n\n` +
-    `• Room: ${location}\n` +
-    `• Host: ${organizerName} (${organizerEmail})\n` +
-    `• Department: ${booking?.department || "N/A"}\n` +
-    `• Duration: ${durationMins} minutes\n` +
-    `• Time Zone: Indian Standard Time (IST - Asia/Kolkata)\n` +
-    `• Agenda: ${booking?.reason || "Corporate Meeting"}`
-  );
-
-  const icsLines = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//PS Group//Meeting Room Portal//EN",
-    "CALSCALE:GREGORIAN",
-    "METHOD:REQUEST",
-    "X-WR-TIMEZONE:Asia/Kolkata",
-    "BEGIN:VTIMEZONE",
-    "TZID:Asia/Kolkata",
-    "X-LIC-LOCATION:Asia/Kolkata",
-    "BEGIN:STANDARD",
-    "TZOFFSETFROM:+0530",
-    "TZOFFSETTO:+0530",
-    "TZNAME:IST",
-    "DTSTART:19700101T000000",
-    "END:STANDARD",
-    "END:VTIMEZONE",
-    "BEGIN:VEVENT",
-    `UID:${uid}`,
-    `DTSTAMP:${dtStamp}`,
-    `DTSTART;TZID=Asia/Kolkata:${dtStart}`,
-    `DTEND;TZID=Asia/Kolkata:${dtEnd}`,
-    `SUMMARY:${cleanStr(summary)}`,
-    `DESCRIPTION:${description}`,
-    `LOCATION:${cleanStr(location)}`,
-    `ORGANIZER;CN="${cleanStr(organizerName)}":mailto:${organizerEmail}`,
-    `ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN="Participant":mailto:${attendeeEmail}`,
-    "STATUS:CONFIRMED",
-    "SEQUENCE:0",
-    "END:VEVENT",
-    "END:VCALENDAR"
-  ];
-
-  return icsLines.join("\r\n");
-}
-
-interface StructuredEmailOptions {
-  title: string;
-  badgeText?: string;
-  badgeBg?: string;
-  badgeColor?: string;
-  recipientName?: string;
-  summaryText: string;
-  details: Array<{ label: string; value: string; highlight?: boolean }>;
-  noteText?: string;
-  actionUrl?: string;
-  actionText?: string;
-}
-
-function buildStructuredEmailDraft(opts: StructuredEmailOptions): { html: string; text: string } {
-  const {
-    title,
-    badgeText,
-    badgeBg = "#2563eb",
-    badgeColor = "#ffffff",
-    recipientName,
-    summaryText,
-    details,
-    noteText,
-    actionUrl,
-    actionText,
-  } = opts;
-
-  const htmlRows = details
-    .map(
-      (d) => `
-      <tr>
-        <td style="padding: 10px 14px; font-weight: 600; color: #475569; width: 38%; border-bottom: 1px solid #f1f5f9; vertical-align: top; font-size: 13px;">${d.label}</td>
-        <td style="padding: 10px 14px; color: ${d.highlight ? "#0f172a" : "#334155"}; font-weight: ${d.highlight ? "700" : "500"}; border-bottom: 1px solid #f1f5f9; font-size: 13px;">${d.value}</td>
-      </tr>`
-    )
-    .join("");
-
-  const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title}</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 28px 12px;">
-    <tr>
-      <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(15,23,42,0.06);">
-          <!-- Top Header Banner -->
-          <tr>
-            <td style="background-color: #0f172a; padding: 24px 32px;">
-              <table width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td>
-                    <span style="font-size: 20px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; display: block;">PS GROUP</span>
-                    <span style="font-size: 12px; color: #94a3b8; display: block; margin-top: 2px;">Corporate Meeting Room Management Portal</span>
-                  </td>
-                  ${
-                    badgeText
-                      ? `<td align="right">
-                          <span style="background-color: ${badgeBg}; color: ${badgeColor}; padding: 6px 14px; border-radius: 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; display: inline-block;">${badgeText}</span>
-                        </td>`
-                      : ""
-                  }
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <!-- Main Content -->
-          <tr>
-            <td style="padding: 32px;">
-              <h2 style="margin: 0 0 12px 0; font-size: 20px; font-weight: 700; color: #0f172a; letter-spacing: -0.3px;">${title}</h2>
-              ${recipientName ? `<p style="margin: 0 0 16px 0; font-size: 14px; color: #334155;">Dear <strong>${recipientName}</strong>,</p>` : ""}
-              <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #475569;">${summaryText}</p>
-
-              <!-- Details Box -->
-              <div style="background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 24px;">
-                <div style="background-color: #f1f5f9; padding: 10px 14px; border-bottom: 1px solid #e2e8f0; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">
-                  Event &amp; Reservation Details
-                </div>
-                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
-                  ${htmlRows}
-                </table>
-              </div>
-
-              ${
-                noteText
-                  ? `<div style="background-color: #eff6ff; border-left: 4px solid #2563eb; padding: 12px 16px; border-radius: 4px; font-size: 13px; color: #1e40af; line-height: 1.5; margin-bottom: 24px;">
-                      <strong>Note:</strong> ${noteText}
-                    </div>`
-                  : ""
-              }
-
-              ${
-                actionUrl && actionText
-                  ? `<div style="text-align: center; margin: 28px 0 12px 0;">
-                      <a href="${actionUrl}" style="background-color: #0f172a; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-size: 13px; font-weight: 700; display: inline-block;">${actionText}</a>
-                    </div>`
-                  : ""
-              }
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="background-color: #f1f5f9; padding: 20px 32px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; text-align: center; line-height: 1.5;">
-              <strong>PS Group Corporate Facilities &amp; IT Operations</strong><br/>
-              This is an automated notification from the Meeting Room Portal. For support, contact <a href="mailto:ithelpdesk@psgroup.in" style="color: #2563eb; text-decoration: none;">ithelpdesk@psgroup.in</a>.
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
-
-  const textDetails = details.map((d) => `• ${d.label}: ${d.value}`).join("\n");
-  const text = `${title.toUpperCase()}\n${"=".repeat(title.length)}\n\n` +
-    (recipientName ? `Dear ${recipientName},\n\n` : "") +
-    `${summaryText}\n\n` +
-    `SUMMARY DETAILS:\n` +
-    `${textDetails}\n\n` +
-    (noteText ? `NOTE: ${noteText}\n\n` : "") +
-    `---\nPS Group Corporate Facilities & IT Operations\nContact: ithelpdesk@psgroup.in`;
-
-  return { html, text };
-}
-
 async function sendEmailNotification(
   to: string | string[],
   subject: string,
@@ -443,155 +201,16 @@ async function sendEmailNotification(
   priority: "Normal" | "High",
   bookingId: string,
   bookingData?: any,
-  customHtml?: string
+  customHtml?: string,
+  options: { calendarMethod?: CalendarMethod } = {}
 ) {
   const dbObj = getDatabase();
-  let status: "success" | "logged_only" | "failed" = "logged_only";
-  let statusMessage = "";
-
-  const adminEmail = process.env.ADMIN_ALERT_EMAIL || "supratik@psgroup.in";
-
-  // List of non-existent or internal aliases that fail recipient lookup
-  const invalidInternalAliases = [
-    "ithelpdesk@psgroup.in",
-    "user@psgroup.in",
-    "pending@psgroup.in"
-  ];
-
-  // Determine valid target recipient email addresses
-  let rawList: string[] = [];
-  if (Array.isArray(to)) {
-    rawList = to;
-  } else if (typeof to === "string") {
-    rawList = to.split(",");
-  }
-
-  const validRecipients: string[] = [];
-  for (const item of rawList) {
-    if (item && typeof item === "string" && item.trim().includes("@")) {
-      const trimmed = item.trim();
-      const lower = trimmed.toLowerCase();
-      if (
-        !lower.includes("example.com") &&
-        !lower.includes("company.com") &&
-        !invalidInternalAliases.includes(lower)
-      ) {
-        if (!validRecipients.includes(trimmed)) {
-          validRecipients.push(trimmed);
-        }
-      }
-    }
-  }
-
-  if (validRecipients.length === 0) {
-    status = "failed";
-    statusMessage = "No valid recipient email addresses provided.";
+  const sendResult = await dispatchEmail(to, subject, body, priority, bookingId, bookingData, customHtml, options);
+  const status = sendResult.status;
+  const statusMessage = sendResult.message;
+  const recipientDisplayString = (sendResult.recipients || []).join(", ") || (Array.isArray(to) ? to.join(", ") : String(to || ""));
+  if (!sendResult.recipients || sendResult.recipients.length === 0) {
     return { status, message: statusMessage };
-  }
-
-  const primaryRecipient = validRecipients[0];
-  const recipientDisplayString = validRecipients.join(", ");
-
-  // Construct structured HTML email template if not explicitly provided
-  const htmlBody = customHtml || buildStructuredEmailDraft({
-    title: subject.replace(/^\[.*?\]\s*/, ""),
-    badgeText: priority === "High" ? "HIGH PRIORITY" : "MEETING INVITATION",
-    badgeBg: priority === "High" ? "#dc2626" : "#2563eb",
-    summaryText: body,
-    details: [
-      { label: "Meeting Subject", value: subject, highlight: true },
-      { label: "Participants", value: recipientDisplayString },
-      { label: "Timestamp", value: new Date().toLocaleString() }
-    ],
-    noteText: "Sent via PS Group Corporate Meeting Portal Notification Service."
-  }).html;
-
-  // Primary Dispatch via Resend API
-  if (process.env.RESEND_API_KEY) {
-    try {
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      const fromAddress = process.env.RESEND_FROM_EMAIL || "PS Group Meeting Portal <onboarding@resend.dev>";
-      const isSandboxFrom = fromAddress.includes("resend.dev");
-      const verifiedTestEmail = process.env.RESEND_TEST_EMAIL || adminEmail || "supratik@psgroup.in";
-
-      let resendAttachments: any[] = [];
-      if (bookingData || (bookingId && bookingId !== "general" && bookingId !== "account-approval")) {
-        const icsContent = generateIcsContent(bookingData || { bookingId, reason: subject }, primaryRecipient);
-        const icsFilename = `meeting-invite-${bookingId || "booking"}.ics`;
-        resendAttachments.push({
-          filename: icsFilename,
-          content: Buffer.from(icsContent, "utf-8"),
-          contentType: "text/calendar; method=REQUEST; charset=UTF-8; name=" + icsFilename,
-        });
-      }
-
-      // If sending from onboarding@resend.dev (Resend sandbox default), Resend restricts sending strictly to the account owner's email address
-      const isSendingToVerifiedOnly = validRecipients.length === 1 && validRecipients[0].toLowerCase() === verifiedTestEmail.toLowerCase();
-      
-      let targetTo: string[];
-      let finalSubject = subject;
-      let finalHtml = htmlBody;
-      let finalBody = body;
-      let isSandboxRouted = false;
-
-      if (isSandboxFrom && !isSendingToVerifiedOnly) {
-        // Route sandbox test safely directly to the verified email to avoid Resend 422 validation_error
-        targetTo = [verifiedTestEmail];
-        finalSubject = `[Resend Sandbox -> ${recipientDisplayString}] ${subject}`;
-        finalBody = `[NOTE: Resend Sandbox Mode Active - Intended Recipient(s): ${recipientDisplayString}]\n\n` + body;
-        finalHtml = `<div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:10px 14px;margin-bottom:16px;font-family:sans-serif;font-size:12px;color:#92400e;"><strong>Resend Sandbox Mode:</strong> Intended recipient(s): <code>${recipientDisplayString}</code></div>` + htmlBody;
-        isSandboxRouted = true;
-      } else {
-        targetTo = validRecipients;
-      }
-
-      const resendResponse = await resend.emails.send({
-        from: fromAddress,
-        to: targetTo,
-        subject: finalSubject,
-        text: finalBody,
-        html: finalHtml,
-        attachments: resendAttachments.length > 0 ? resendAttachments : undefined,
-      });
-
-      if (resendResponse.error) {
-        const errMsg = resendResponse.error.message || "";
-        // If domain is unverified in Resend free tier, attempt fallback dispatch to verified account email
-        if (!isSandboxRouted && (errMsg.toLowerCase().includes("testing emails") || errMsg.toLowerCase().includes("verify a domain") || errMsg.toLowerCase().includes("validation_error"))) {
-          const fallbackRes = await resend.emails.send({
-            from: "PS Group Meeting Portal <onboarding@resend.dev>",
-            to: [verifiedTestEmail],
-            subject: `[Resend Delivery Note -> ${recipientDisplayString}] ${subject}`,
-            text: `[Intended Recipient(s): ${recipientDisplayString}]\n\n` + body,
-            html: `<div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:10px 14px;margin-bottom:16px;font-family:sans-serif;font-size:12px;color:#92400e;"><strong>Resend Delivery Note:</strong> Intended recipient(s): <code>${recipientDisplayString}</code>. (Domain verification recommended at resend.com/domains)</div>` + htmlBody,
-            attachments: resendAttachments.length > 0 ? resendAttachments : undefined,
-          });
-
-          if (!fallbackRes.error) {
-            status = "success";
-            statusMessage = `Delivered to verified email ${verifiedTestEmail} for ${recipientDisplayString} [ID: ${fallbackRes.data?.id}]`;
-          } else {
-            throw new Error(fallbackRes.error.message);
-          }
-        } else {
-          throw new Error(errMsg);
-        }
-      } else {
-        status = "success";
-        if (isSandboxRouted) {
-          statusMessage = `Delivered via Resend Sandbox to ${verifiedTestEmail} for ${recipientDisplayString} [ID: ${resendResponse.data?.id}]`;
-        } else {
-          statusMessage = `Email and Calendar Invite (.ics) delivered via Resend API to ${recipientDisplayString} [ID: ${resendResponse.data?.id}]`;
-        }
-      }
-    } catch (resendErr: any) {
-      status = "failed";
-      statusMessage = `Resend API Delivery Note: ${resendErr?.message || String(resendErr)}`;
-    }
-  } else {
-    status = "logged_only";
-    statusMessage = "Resend API key not configured. Email recorded in system notification logs.";
-    console.log(`[Email Logged] To: ${recipientDisplayString} | Subject: ${subject}`);
   }
 
   const newLog: NotificationLog = {
@@ -784,48 +403,7 @@ async function startServer() {
       return res.status(400).json({ error: "Missing booking parameter" });
     }
 
-    const roomDisplayName = roomName || booking.roomName || "Meeting Room";
-    const emailSubject = `[IT Support Request] ${roomDisplayName} - ${booking.reason || "Corporate Meeting"} (${booking.date} at ${booking.startTime})`;
-    
-    let guestInfoText = "";
-    if (booking.externalGuests && Array.isArray(booking.externalGuests) && booking.externalGuests.length > 0) {
-      guestInfoText = booking.externalGuests.map((g: any, idx: number) => {
-        let details = `${idx + 1}. ${g.name}`;
-        if (g.company) details += ` (${g.company})`;
-        if (g.email) details += ` - ${g.email}`;
-        if (g.phone) details += ` - ${g.phone}`;
-        return details;
-      }).join("; ");
-    } else if (booking.externalName) {
-      guestInfoText = `${booking.externalName} (${booking.externalCompany || "N/A"})`;
-    }
-
-    let participantText = "";
-    if (booking.participantEmails && Array.isArray(booking.participantEmails) && booking.participantEmails.length > 0) {
-      participantText = booking.participantEmails.join(", ");
-    }
-
-    const itDraft = buildStructuredEmailDraft({
-      title: "IT Support & Audio-Visual Setup Request",
-      badgeText: "IT SUPPORT REQ",
-      badgeBg: "#2563eb",
-      badgeColor: "#ffffff",
-      recipientName: "PS Group IT Support Team (it@psgroup.in)",
-      summaryText: "An IT Support and Audio-Visual setup request has been logged for an upcoming corporate meeting at PS Group. Please ensure all required AV technology, display connectivity, Wi-Fi access, and conferencing equipment are tested and ready prior to the meeting start time.",
-      details: [
-        { label: "Meeting Room", value: roomDisplayName, highlight: true },
-        { label: "Date & Time Slot", value: `${booking.date} at ${booking.startTime} (${booking.duration || 60} mins)` },
-        { label: "Meeting Agenda / Title", value: booking.reason || "Corporate Meeting" },
-        { label: "Host / Organizer Name", value: booking.bookerName || "N/A" },
-        { label: "Host / Organizer Email", value: booking.bookerEmail || "N/A" },
-        { label: "Department", value: booking.department || "N/A" },
-        { label: "Meeting Type", value: booking.meetingType || "Internal" },
-        { label: "Attendees Count", value: booking.attendeesCount ? `${booking.attendeesCount} participants` : "N/A" },
-        { label: "Internal Participants", value: participantText || "None specified" },
-        { label: "External Visitors", value: guestInfoText || "None" }
-      ],
-      noteText: "Action Required for IT Team: Please test projector/TV screen display, HDMI dongles & adapters, conference speakerphone/microphones, video conference links, and guest Wi-Fi access prior to the meeting start time."
-    });
+    const { subject: emailSubject, roomDisplayName, draft: itDraft } = buildItHelpdeskEmail(booking, roomName);
 
     const result = await sendEmailNotification(
       "it@psgroup.in",
@@ -856,40 +434,7 @@ async function startServer() {
       return res.status(400).json({ error: "Missing booking parameter" });
     }
 
-    const roomDisplayName = roomName || booking.roomName || "Meeting Room";
-    const emailSubject = `[F&B & Hospitality Request] Catering Setup for ${roomDisplayName} (${booking.date} at ${booking.startTime})`;
-
-    let guestInfoText = "";
-    if (booking.externalGuests && Array.isArray(booking.externalGuests) && booking.externalGuests.length > 0) {
-      guestInfoText = booking.externalGuests.map((g: any, idx: number) => {
-        let details = `${idx + 1}. ${g.name}`;
-        if (g.company) details += ` (${g.company})`;
-        return details;
-      }).join("; ");
-    } else if (booking.externalName) {
-      guestInfoText = `${booking.externalName} (${booking.externalCompany || "N/A"})`;
-    }
-
-    const fbDraft = buildStructuredEmailDraft({
-      title: "Hospitality & F&B Catering Setup Request",
-      badgeText: "F&B CATERING REQ",
-      badgeBg: "#d97706",
-      badgeColor: "#ffffff",
-      recipientName: "PS Group Hospitality & Admin Team (hospitality@psgroup.in)",
-      summaryText: "A Food & Beverage (F&B) and Hospitality request has been logged for an upcoming corporate meeting at PS Group. Please prepare refreshment service, clean glassware, mineral water, and appropriate tea/coffee/catering in the designated room before the scheduled start time.",
-      details: [
-        { label: "Meeting Room", value: roomDisplayName, highlight: true },
-        { label: "Date & Time Slot", value: `${booking.date} at ${booking.startTime} (${booking.duration || 60} mins)` },
-        { label: "Meeting Agenda / Title", value: booking.reason || "Corporate Meeting" },
-        { label: "Host / Organizer Name", value: booking.bookerName || "N/A" },
-        { label: "Host / Organizer Email", value: booking.bookerEmail || "N/A" },
-        { label: "Department", value: booking.department || "N/A" },
-        { label: "Meeting Type", value: booking.meetingType || "Internal" },
-        { label: "Attendees Count (Catering)", value: booking.attendeesCount ? `${booking.attendeesCount} attendees` : "1 attendee" },
-        { label: "External Visitors", value: guestInfoText || "None" }
-      ],
-      noteText: "Action Required for Hospitality Team: Arrange mineral water bottles, tea/coffee service setup, clean glassware, and ensure room chairs and table arrangement are sanitized and organized."
-    });
+    const { subject: emailSubject, roomDisplayName, draft: fbDraft } = buildHospitalityEmail(booking, roomName);
 
     const result = await sendEmailNotification(
       "hospitality@psgroup.in",
@@ -1525,54 +1070,32 @@ async function startServer() {
     const dbObj = getDatabase();
     const bookingIndex = dbObj.bookings.findIndex((b) => b.bookingId === bookingId);
 
-    let booking: any = null;
+    // Bookings live in Firestore; the client sends the booking details with the request.
+    let booking: any = req.body?.booking && req.body.booking.bookingId === bookingId ? req.body.booking : null;
     if (bookingIndex !== -1) {
       dbObj.bookings[bookingIndex].status = "Cancelled";
-      booking = dbObj.bookings[bookingIndex];
+      booking = booking || dbObj.bookings[bookingIndex];
       saveDatabase(dbObj);
     }
 
     const targetRoom = booking ? dbObj.rooms.find((r) => r.roomId === booking.roomId) : null;
-    const roomName = targetRoom ? targetRoom.name : (booking?.roomId || "Meeting Room");
+    const roomName = req.body?.roomName || (targetRoom ? targetRoom.name : undefined);
 
-    // Extract organizer and participant emails ending with @psgroup.in
-    const bookerEmail = booking?.bookerEmail;
-    const rawParticipants = Array.isArray(booking?.participantEmails) ? booking.participantEmails : [];
-    const validParticipants = rawParticipants
-      .map((e: any) => (typeof e === "string" ? e.trim().toLowerCase() : ""))
-      .filter((e: string) => e && e.endsWith("@psgroup.in") && e !== bookerEmail?.toLowerCase());
-
-    const cancelRecipients: string[] = [];
-    if (bookerEmail && bookerEmail.includes("@")) {
-      cancelRecipients.push(bookerEmail);
-    }
-    for (const p of validParticipants) {
-      if (!cancelRecipients.includes(p)) {
-        cancelRecipients.push(p);
+    if (booking) {
+      const { subject, roomDisplayName, recipients, draft } = buildCancellationEmail(booking, bookingId, roomName);
+      const psgRecipients = recipients.filter((e) => e.endsWith("@psgroup.in"));
+      if (psgRecipients.length > 0) {
+        sendEmailNotification(
+          psgRecipients,
+          subject,
+          draft.text,
+          "Normal",
+          bookingId,
+          { ...booking, roomName: roomDisplayName },
+          draft.html,
+          { calendarMethod: "CANCEL" }
+        ).catch(() => {});
       }
-    }
-
-    // Send cancellation notification email strictly to organizer and participants ONLY (not admin)
-    if (cancelRecipients.length > 0) {
-      const subject = `[RESERVATION CANCELLED] ${roomName} - ${booking?.date || ""} ${booking?.startTime || ""}`;
-
-      const cancelDraft = buildStructuredEmailDraft({
-        title: "Meeting Room Reservation Cancelled",
-        badgeText: "CANCELLED",
-        badgeBg: "#ef4444",
-        recipientName: booking?.bookerName || "Employee",
-        summaryText: "This email confirms that your meeting room reservation has been cancelled. The time slot has been released back into the portal for other colleagues to book.",
-        details: [
-          { label: "Reservation ID", value: bookingId },
-          { label: "Meeting Room", value: roomName, highlight: true },
-          { label: "Date & Released Time", value: `${booking?.date || "N/A"} at ${booking?.startTime || "N/A"}` },
-          { label: "Host / Organizer", value: `${booking?.bookerName || "Employee"} (${booking?.bookerEmail || "N/A"})` },
-          { label: "Cancellation Timestamp", value: new Date().toLocaleString() }
-        ],
-        noteText: "If this cancellation was unintended, you can create a new reservation anytime through the Meeting Room Portal."
-      });
-
-      sendEmailNotification(cancelRecipients, subject, cancelDraft.text, "Normal", bookingId, undefined, cancelDraft.html).catch(() => {});
     }
 
     return res.json({
@@ -1848,68 +1371,6 @@ async function startServer() {
       res.json({ message: "Background notification loop manually triggered and executed successfully." });
     } catch (err: any) {
       res.status(500).json({ error: "Alert loop trigger failed: " + err.message });
-    }
-  });
-
-  // ==================== IT HELPDESK NOTIFICATION ENDPOINT ====================
-
-  app.post("/api/notify-it-helpdesk", (req, res) => {
-    try {
-      const { booking, roomName } = req.body;
-      if (!booking) {
-        return res.status(400).json({ error: "Booking details required" });
-      }
-
-      const notifId = "notif-it-" + Math.random().toString(36).substr(2, 9);
-      const hostName = booking.bookerName || "Employee";
-      const hostEmail = booking.bookerEmail || "N/A";
-      const room = roomName || "Meeting Room";
-      const date = booking.date;
-      const startTime = booking.startTime;
-      const duration = booking.duration || 60;
-      const agenda = booking.reason || "N/A";
-
-      const subject = `[IT Support Required] ${room} on ${date} at ${startTime}`;
-      const body = `IT SUPPORT & AV SETUP REQUEST\n\n` +
-        `• Meeting Date: ${date}\n` +
-        `• Start Time: ${startTime} (${duration} Minutes)\n` +
-        `• Room Name / Number: ${room}\n` +
-        `• Host Name: ${hostName}\n` +
-        `• Host Email: ${hostEmail}\n` +
-        `• Agenda / Title: ${agenda}\n` +
-        `• Meeting Type: ${booking.meetingType || "Internal"}\n` +
-        (booking.externalGuests && Array.isArray(booking.externalGuests) && booking.externalGuests.length > 0
-          ? `• External Guests (${booking.externalGuests.length}):\n` + booking.externalGuests.map((g: any, i: number) => `  ${i + 1}. ${g.name}${g.company ? ` (${g.company})` : ""}${g.phone ? ` - ${g.phone}` : ""}`).join("\n") + "\n"
-          : (booking.externalName ? `• Visitor: ${booking.externalName} (${booking.externalCompany || "N/A"})\n` : "")) +
-        `\nNote: Sent directly to IT Helpdesk (ithelpdesk@psgroup.in) with attached iCalendar (.ics) invite format so IT Helpdesk receives pre-meeting reminders.`;
-
-      // Log into database
-      const dbObj = getDatabase();
-      if (dbObj && dbObj.notifications) {
-        dbObj.notifications.unshift({
-          notificationId: notifId,
-          bookingId: booking.bookingId || "N/A",
-          emailTo: "ithelpdesk@psgroup.in",
-          subject,
-          body,
-          sentAt: new Date().toISOString(),
-          priority: "High",
-          status: "success"
-        });
-      }
-
-      console.log(`[IT Helpdesk Email Dispatched] To: ithelpdesk@psgroup.in | Room: ${room} | Date: ${date} ${startTime}`);
-
-      res.json({
-        success: true,
-        message: "IT Helpdesk notified successfully at ithelpdesk@psgroup.in",
-        recipient: "ithelpdesk@psgroup.in",
-        subject,
-        body
-      });
-    } catch (err: any) {
-      console.error("Failed to process IT Helpdesk notification:", err);
-      res.status(500).json({ error: err.message || "Failed to notify IT Helpdesk" });
     }
   });
 
