@@ -872,7 +872,7 @@ export const apiService = {
       `• F&B Catering Required: ${isFBRequired ? "YES (Requested)" : "No"}\n` +
       (newBooking.attendeesCount ? `• Attendees Count: ${newBooking.attendeesCount}\n` : "") +
       externalGuestsText +
-      `\nAn iCalendar (.ics) event invite is attached so this meeting can be saved directly to your Outlook or Google calendar.`;
+      `\nThis email is a calendar invite: the meeting is added to your Outlook calendar automatically. Use Accept / Decline to respond.`;
 
     let emailStatus: "success" | "logged_only" | "failed" = "logged_only";
     let emailStatusMessage = "";
@@ -1060,11 +1060,18 @@ export const apiService = {
       }
     }
 
-    // Call server endpoint to sync server state & dispatch cancellation email
+    // Call server endpoint to dispatch the calendar cancellation (removes the meeting from Outlook calendars)
     try {
+      let roomName: string | undefined;
+      try {
+        roomName = (await this.getRooms()).find((r) => r.roomId === booking.roomId)?.name;
+      } catch {
+        roomName = undefined;
+      }
       await fetch(`/api/bookings/${bookingId}/cancel`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" }
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ booking: { ...booking, bookingId }, roomName })
       });
     } catch (err) {
       console.warn("Server cancel notification endpoint error:", err);
