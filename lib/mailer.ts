@@ -2,6 +2,7 @@
 // Vercel Serverless Functions in /api. Keep this file free of database / Express
 // dependencies so it can run in a stateless serverless environment.
 import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
 export type EmailPriority = "Normal" | "High";
 export type EmailStatus = "success" | "logged_only" | "failed";
@@ -33,6 +34,30 @@ function foldIcsLine(line: string): string {
   return parts.join("\r\n ");
 }
 
+export type CalendarMethod = "REQUEST" | "CANCEL";
+
+export interface IcsOptions {
+  method?: CalendarMethod;
+  sequence?: number;
+  organizerEmail?: string;
+  organizerName?: string;
+}
+
+/**
+ * The mailbox shown as the meeting organizer. Defaults to the address in RESEND_FROM_EMAIL
+ * (e.g. meetings@psgroup.in). Override with CALENDAR_ORGANIZER_EMAIL / CALENDAR_ORGANIZER_NAME.
+ * Attendees' Accept/Decline replies go to this address, so it should be a real mailbox.
+ */
+export function calendarOrganizer(): { email: string; name: string } {
+  const from = process.env.RESEND_FROM_EMAIL || "";
+  const match = from.match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/);
+  const fromEmail = (match ? match[2] : from).trim();
+  const fromName = (match ? match[1] : "").trim();
+  const email = (process.env.CALENDAR_ORGANIZER_EMAIL || (fromEmail.includes("resend.dev") ? "" : fromEmail)).trim();
+  const name = (process.env.CALENDAR_ORGANIZER_NAME || fromName || "PS Group Meeting Portal").trim();
+  return { email, name };
+}
+
 // Helper function to generate iCalendar (.ics) content for meeting invites
 export function generateIcsContent(
   booking: {
@@ -47,8 +72,11 @@ export function generateIcsContent(
     bookerEmail?: string;
     department?: string;
   },
-  recipientEmail?: string | string[]
+  recipientEmail?: string | string[],
+  options: IcsOptions = {}
 ): string {
+  const method = options.method || "REQUEST";
+  const isCancel = method === "CANCEL";
   const now = new Date();
   const pad = (n: number) => (n < 10 ? "0" + n : "" + n);
   const dtStamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}Z`;
@@ -84,12 +112,17 @@ export function generateIcsContent(
   const uid = (booking?.bookingId || "booking-" + Date.now()) + "@psgroup.in";
   const summary = booking?.reason ? `Meeting: ${booking.reason}` : "Meeting Room Reservation";
   const location = booking?.roomName || booking?.roomId || "PS Group Meeting Room";
-  const organizerName = booking?.bookerName || "PS Group Meeting Portal";
-
-  const rawOrgEmail = booking?.bookerEmail || "";
-  const organizerEmail = (rawOrgEmail && rawOrgEmail.includes("@") && !rawOrgEmail.includes("example.com") && !rawOrgEmail.includes("company.com"))
-    ? rawOrgEmail.trim()
+  const hostName = booking?.bookerName || "PS Group Meeting Portal";
+  const rawHostEmail = booking?.bookerEmail || "";
+  const hostEmail = (rawHostEmail && rawHostEmail.includes("@") && !rawHostEmail.includes("example.com") && !rawHostEmail.includes("company.com"))
+    ? rawHostEmail.trim()
     : "supratik@psgroup.in";
+
+  // The calendar ORGANIZER is the portal mailbox (not the booker), so the booker also
+  // receives the meeting as a normal invite and Outlook adds it to their calendar.
+  const portal = calendarOrganizer();
+  const organizerEmail = options.organizerEmail || portal.email || hostEmail;
+  const organizerName = options.organizerName || portal.name || hostName;
 
   const rawAttendees = (Array.isArray(recipientEmail) ? recipientEmail : [recipientEmail || ""])
     .map((e) => (e || "").trim())
@@ -101,7 +134,7 @@ export function generateIcsContent(
   const description = cleanStr(
     `Meeting Room Reservation\n\n` +
     `• Room: ${location}\n` +
-    `• Host: ${organizerName} (${organizerEmail})\n` +
+    `• Booked by: ${hostName} (${hostEmail})\n` +
     `• Department: ${booking?.department || "N/A"}\n` +
     `• Duration: ${durationMins} minutes\n` +
     `• Time Zone: Indian Standard Time (IST - Asia/Kolkata)\n` +
@@ -113,7 +146,7 @@ export function generateIcsContent(
     "VERSION:2.0",
     "PRODID:-//PS Group//Meeting Room Portal//EN",
     "CALSCALE:GREGORIAN",
-    "METHOD:REQUEST",
+    `METHOD:${method}`,
     "X-WR-TIMEZONE:Asia/Kolkata",
     "BEGIN:VTIMEZONE",
     "TZID:Asia/Kolkata",
@@ -130,15 +163,20 @@ export function generateIcsContent(
     `DTSTAMP:${dtStamp}`,
     `DTSTART;TZID=Asia/Kolkata:${dtStart}`,
     `DTEND;TZID=Asia/Kolkata:${dtEnd}`,
-    `SUMMARY:${cleanStr(summary)}`,
+    `SUMMARY:${cleanStr(isCancel ? `Cancelled: ${summary}` : summary)}`,
     `DESCRIPTION:${description}`,
     `LOCATION:${cleanStr(location)}`,
     `ORGANIZER;CN="${cleanStr(organizerName)}":mailto:${organizerEmail}`,
     ...attendeeEmails.map(
       (a) => `ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN="${cleanStr(a)}":mailto:${a}`
     ),
-    "STATUS:CONFIRMED",
-    "SEQUENCE:0",
+    `STATUS:${isCancel ? "CANCELLED" : "CONFIRMED"}`,
+    `SEQUENCE:${options.sequence ?? (isCancel ? 1 : 0)}`,
+    "TRANSP:OPAQUE",
+    `X-MICROSOFT-CDO-BUSYSTATUS:${isCancel ? "FREE" : "BUSY"}`,
+    ...(isCancel
+      ? []
+      : ["BEGIN:VALARM", "TRIGGER:-PT15M", "ACTION:DISPLAY", "DESCRIPTION:Reminder", "END:VALARM"]),
     "END:VEVENT",
     "END:VCALENDAR"
   ];
@@ -276,6 +314,43 @@ export function buildStructuredEmailDraft(opts: StructuredEmailOptions): { html:
 
   return { html, text };
 }
+/**
+ * Sends an email whose calendar part is a proper iMIP meeting request (RFC 6047), using
+ * Resend's SMTP relay (user "resend", password = RESEND_API_KEY). Nodemailer's `icalEvent`
+ * adds the text/calendar alternative part that Outlook recognises as a meeting invite.
+ */
+export async function sendCalendarEmailViaSmtp(opts: {
+  from: string;
+  to: string[];
+  subject: string;
+  text: string;
+  html: string;
+  ics: string;
+  method: CalendarMethod;
+  priority?: EmailPriority;
+}): Promise<string> {
+  const transporter = nodemailer.createTransport({
+    host: process.env.RESEND_SMTP_HOST || "smtp.resend.com",
+    port: Number(process.env.RESEND_SMTP_PORT || 465),
+    secure: Number(process.env.RESEND_SMTP_PORT || 465) === 465,
+    auth: { user: "resend", pass: process.env.RESEND_API_KEY as string },
+  });
+  const info = await transporter.sendMail({
+    from: opts.from,
+    to: opts.to,
+    subject: opts.subject,
+    text: opts.text,
+    html: opts.html,
+    priority: opts.priority === "High" ? "high" : "normal",
+    icalEvent: {
+      method: opts.method,
+      filename: opts.method === "CANCEL" ? "cancel.ics" : "invite.ics",
+      content: opts.ics,
+    },
+  });
+  return info.messageId;
+}
+
 export async function dispatchEmail(
   to: string | string[],
   subject: string,
@@ -283,7 +358,8 @@ export async function dispatchEmail(
   priority: EmailPriority,
   bookingId: string,
   bookingData?: any,
-  customHtml?: string
+  customHtml?: string,
+  options: { calendarMethod?: CalendarMethod } = {}
 ) {
   let status: EmailStatus = "logged_only";
   let statusMessage = "";
@@ -345,7 +421,7 @@ export async function dispatchEmail(
     noteText: "Sent via PS Group Corporate Meeting Portal Notification Service."
   }).html;
 
-  // Primary Dispatch via Resend API
+  // Primary Dispatch via Resend
   if (process.env.RESEND_API_KEY) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY);
@@ -353,20 +429,9 @@ export async function dispatchEmail(
       const isSandboxFrom = fromAddress.includes("resend.dev");
       const verifiedTestEmail = process.env.RESEND_TEST_EMAIL || adminEmail || "supratik@psgroup.in";
 
-      let resendAttachments: any[] = [];
-      if (bookingData || (bookingId && bookingId !== "general" && bookingId !== "account-approval")) {
-        const icsContent = generateIcsContent(bookingData || { bookingId, reason: subject }, validRecipients);
-        const icsFilename = `meeting-invite-${bookingId || "booking"}.ics`;
-        resendAttachments.push({
-          filename: icsFilename,
-          content: Buffer.from(icsContent, "utf-8"),
-          contentType: "text/calendar; method=REQUEST; charset=UTF-8; name=" + icsFilename,
-        });
-      }
-
       // If sending from onboarding@resend.dev (Resend sandbox default), Resend restricts sending strictly to the account owner's email address
       const isSendingToVerifiedOnly = validRecipients.length === 1 && validRecipients[0].toLowerCase() === verifiedTestEmail.toLowerCase();
-      
+
       let targetTo: string[];
       let finalSubject = subject;
       let finalHtml = htmlBody;
@@ -378,49 +443,72 @@ export async function dispatchEmail(
         targetTo = [verifiedTestEmail];
         finalSubject = `[Resend Sandbox -> ${recipientDisplayString}] ${subject}`;
         finalBody = `[NOTE: Resend Sandbox Mode Active - Intended Recipient(s): ${recipientDisplayString}]\n\n` + body;
-        finalHtml = `<div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:10px 14px;margin-bottom:16px;font-family:sans-serif;font-size:12px;color:#92400e;"><strong>Resend Sandbox Mode:</strong> Intended recipient(s): <code>${recipientDisplayString}</code></div>` + htmlBody;
+        finalHtml = `<div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:10px 14px;margin-bottom:16px;font-family:sans-serif;font-size:12px;color:#92400e;"><strong>Resend Sandbox Mode:</strong> Intended recipient(s): <code>${escapeHtml(recipientDisplayString)}</code></div>` + htmlBody;
         isSandboxRouted = true;
       } else {
         targetTo = validRecipients;
       }
 
-      const resendResponse = await resend.emails.send({
-        from: fromAddress,
-        to: targetTo,
-        subject: finalSubject,
-        text: finalBody,
-        html: finalHtml,
-        attachments: resendAttachments.length > 0 ? resendAttachments : undefined,
-      });
+      const wantsCalendar =
+        Boolean(options.calendarMethod) ||
+        Boolean(bookingData) ||
+        Boolean(bookingId && bookingId !== "general" && bookingId !== "account-approval");
 
-      if (resendResponse.error) {
-        const errMsg = resendResponse.error.message || "";
-        // If domain is unverified in Resend free tier, attempt fallback dispatch to verified account email
-        if (!isSandboxRouted && (errMsg.toLowerCase().includes("testing emails") || errMsg.toLowerCase().includes("verify a domain") || errMsg.toLowerCase().includes("validation_error"))) {
-          const fallbackRes = await resend.emails.send({
-            from: "PS Group Meeting Portal <onboarding@resend.dev>",
-            to: [verifiedTestEmail],
-            subject: `[Resend Delivery Note -> ${recipientDisplayString}] ${subject}`,
-            text: `[Intended Recipient(s): ${recipientDisplayString}]\n\n` + body,
-            html: `<div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:10px 14px;margin-bottom:16px;font-family:sans-serif;font-size:12px;color:#92400e;"><strong>Resend Delivery Note:</strong> Intended recipient(s): <code>${recipientDisplayString}</code>. (Domain verification recommended at resend.com/domains)</div>` + htmlBody,
-            attachments: resendAttachments.length > 0 ? resendAttachments : undefined,
-          });
+      if (wantsCalendar) {
+        // Calendar invites go through Resend's SMTP relay so the invite can be embedded as a real
+        // meeting request (text/calendar; method=REQUEST|CANCEL) instead of a downloadable file.
+        // Outlook / Microsoft 365 then shows Accept/Decline and places the event on the calendar.
+        const method: CalendarMethod = options.calendarMethod || "REQUEST";
+        const icsContent = generateIcsContent(bookingData || { bookingId, reason: subject }, targetTo, { method });
+        const messageId = await sendCalendarEmailViaSmtp({
+          from: fromAddress,
+          to: targetTo,
+          subject: finalSubject,
+          text: finalBody,
+          html: finalHtml,
+          ics: icsContent,
+          method,
+          priority,
+        });
+        status = "success";
+        statusMessage = isSandboxRouted
+          ? `Delivered via Resend Sandbox to ${verifiedTestEmail} for ${recipientDisplayString} [ID: ${messageId}]`
+          : `Outlook calendar ${method === "CANCEL" ? "cancellation" : "invite"} delivered via Resend to ${recipientDisplayString} [ID: ${messageId}]`;
+      } else {
+        const resendResponse = await resend.emails.send({
+          from: fromAddress,
+          to: targetTo,
+          subject: finalSubject,
+          text: finalBody,
+          html: finalHtml,
+        });
 
-          if (!fallbackRes.error) {
-            status = "success";
-            statusMessage = `Delivered to verified email ${verifiedTestEmail} for ${recipientDisplayString} [ID: ${fallbackRes.data?.id}]`;
+        if (resendResponse.error) {
+          const errMsg = resendResponse.error.message || "";
+          // If domain is unverified in Resend free tier, attempt fallback dispatch to verified account email
+          if (!isSandboxRouted && (errMsg.toLowerCase().includes("testing emails") || errMsg.toLowerCase().includes("verify a domain") || errMsg.toLowerCase().includes("validation_error"))) {
+            const fallbackRes = await resend.emails.send({
+              from: "PS Group Meeting Portal <onboarding@resend.dev>",
+              to: [verifiedTestEmail],
+              subject: `[Resend Delivery Note -> ${recipientDisplayString}] ${subject}`,
+              text: `[Intended Recipient(s): ${recipientDisplayString}]\n\n` + body,
+              html: `<div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:10px 14px;margin-bottom:16px;font-family:sans-serif;font-size:12px;color:#92400e;"><strong>Resend Delivery Note:</strong> Intended recipient(s): <code>${escapeHtml(recipientDisplayString)}</code>. (Domain verification recommended at resend.com/domains)</div>` + htmlBody,
+            });
+
+            if (!fallbackRes.error) {
+              status = "success";
+              statusMessage = `Delivered to verified email ${verifiedTestEmail} for ${recipientDisplayString} [ID: ${fallbackRes.data?.id}]`;
+            } else {
+              throw new Error(fallbackRes.error.message);
+            }
           } else {
-            throw new Error(fallbackRes.error.message);
+            throw new Error(errMsg);
           }
         } else {
-          throw new Error(errMsg);
-        }
-      } else {
-        status = "success";
-        if (isSandboxRouted) {
-          statusMessage = `Delivered via Resend Sandbox to ${verifiedTestEmail} for ${recipientDisplayString} [ID: ${resendResponse.data?.id}]`;
-        } else {
-          statusMessage = `Email and Calendar Invite (.ics) delivered via Resend API to ${recipientDisplayString} [ID: ${resendResponse.data?.id}]`;
+          status = "success";
+          statusMessage = isSandboxRouted
+            ? `Delivered via Resend Sandbox to ${verifiedTestEmail} for ${recipientDisplayString} [ID: ${resendResponse.data?.id}]`
+            : `Email delivered via Resend API to ${recipientDisplayString} [ID: ${resendResponse.data?.id}]`;
         }
       }
     } catch (resendErr: any) {
@@ -520,6 +608,43 @@ export function buildHospitalityEmail(booking: any, roomName?: string) {
   });
 
   return { subject: emailSubject, roomDisplayName, draft: fbDraft };
+}
+
+/** Recipients + content for a cancellation. Includes IT / Hospitality when they were notified. */
+export function buildCancellationEmail(booking: any, bookingId: string, roomName?: string) {
+  const roomDisplayName = roomName || booking?.roomName || booking?.roomId || "Meeting Room";
+  const bookerEmail = typeof booking?.bookerEmail === "string" ? booking.bookerEmail.trim().toLowerCase() : "";
+  const rawParticipants: unknown[] = Array.isArray(booking?.participantEmails) ? booking.participantEmails : [];
+
+  const recipients: string[] = [];
+  const add = (e: unknown) => {
+    const v = typeof e === "string" ? e.trim().toLowerCase() : "";
+    if (v && v.includes("@") && !recipients.includes(v)) recipients.push(v);
+  };
+  add(bookerEmail);
+  rawParticipants.forEach(add);
+  if (booking?.itSupportRequired) add(process.env.IT_HELPDESK_EMAIL || "it@psgroup.in");
+  if (booking?.fbRequired) add(process.env.HOSPITALITY_EMAIL || "hospitality@psgroup.in");
+
+  const subject = `[RESERVATION CANCELLED] ${roomDisplayName} - ${booking?.date || ""} ${booking?.startTime || ""}`.trim();
+  const draft = buildStructuredEmailDraft({
+    title: "Meeting Room Reservation Cancelled",
+    badgeText: "CANCELLED",
+    badgeBg: "#ef4444",
+    recipientName: booking?.bookerName || "Employee",
+    summaryText: "This meeting has been cancelled and removed from your calendar. The time slot has been released back into the portal for other colleagues to book.",
+    details: [
+      { label: "Reservation ID", value: bookingId },
+      { label: "Meeting Room", value: roomDisplayName, highlight: true },
+      { label: "Date & Released Time", value: `${booking?.date || "N/A"} at ${booking?.startTime || "N/A"}` },
+      { label: "Meeting Agenda / Title", value: booking?.reason || "Corporate Meeting" },
+      { label: "Host / Organizer", value: `${booking?.bookerName || "Employee"} (${booking?.bookerEmail || "N/A"})` },
+      { label: "Cancellation Timestamp", value: new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) },
+    ],
+    noteText: "If this cancellation was unintended, you can create a new reservation anytime through the Meeting Room Portal.",
+  });
+
+  return { subject, roomDisplayName, recipients, draft };
 }
 
 // ==================== Guards for the public serverless endpoints ====================
