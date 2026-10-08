@@ -4,9 +4,14 @@ Booking emails go out through three Vercel Serverless Functions in `api/`. They 
 
 | Endpoint | Sends to |
 |---|---|
-| `POST /api/send-email` | Organizer + internal participants, with an `.ics` calendar invite |
+| `POST /api/send-email` | Booker + internal participants, as an Outlook meeting invite (added to their calendars) |
 | `POST /api/notify-it-helpdesk` | `IT_HELPDESK_EMAIL` (default it@psgroup.in) |
 | `POST /api/notify-hospitality` | `HOSPITALITY_EMAIL` (default hospitality@psgroup.in) |
+| `POST /api/bookings/:id/cancel` | Everyone who got the invite: a calendar cancellation that removes the meeting |
+
+Calendar emails go out through Resend's SMTP relay (`smtp.resend.com`, same API key). This lets the
+invite be embedded as a real meeting request (`text/calendar; method=REQUEST`), so Outlook shows
+Accept / Decline and adds the meeting to the calendar automatically. No `.ics` download needed.
 
 ## One-time setup
 
@@ -23,7 +28,10 @@ Booking emails go out through three Vercel Serverless Functions in `api/`. They 
    | `ALLOWED_ORIGINS` | `https://psg-meeting.vercel.app` (add any custom domain) | no |
    | `IT_HELPDESK_EMAIL` / `HOSPITALITY_EMAIL` | override the default recipients | no |
    | `RESEND_TEST_EMAIL` | inbox used while still in sandbox mode | no |
-3. **Redeploy.**
+   | `CALENDAR_ORGANIZER_EMAIL` | mailbox shown as meeting organizer (defaults to the `RESEND_FROM_EMAIL` address) | no |
+3. **Create the organizer mailbox.** In Microsoft 365, create `meetings@psgroup.in` as a shared mailbox (free).
+   Accept / Decline replies go to it, so without it attendees get bounce messages when they respond.
+4. **Redeploy.**
 
 ## Troubleshooting
 - Vercel → Logs, filtered on `/api/send-email`, shows the provider error if a send fails.

@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import { buildHospitalityEmail, buildItHelpdeskEmail, buildStructuredEmailDraft, dispatchEmail } from "./lib/mailer.js";
+import { buildCancellationEmail, buildHospitalityEmail, buildItHelpdeskEmail, buildStructuredEmailDraft, dispatchEmail, type CalendarMethod } from "./lib/mailer.js";
 import { createServer as createViteServer } from "vite";
 
 // Interfaces representing our database schema
@@ -201,10 +201,11 @@ async function sendEmailNotification(
   priority: "Normal" | "High",
   bookingId: string,
   bookingData?: any,
-  customHtml?: string
+  customHtml?: string,
+  options: { calendarMethod?: CalendarMethod } = {}
 ) {
   const dbObj = getDatabase();
-  const sendResult = await dispatchEmail(to, subject, body, priority, bookingId, bookingData, customHtml);
+  const sendResult = await dispatchEmail(to, subject, body, priority, bookingId, bookingData, customHtml, options);
   const status = sendResult.status;
   const statusMessage = sendResult.message;
   const recipientDisplayString = (sendResult.recipients || []).join(", ") || (Array.isArray(to) ? to.join(", ") : String(to || ""));
@@ -1069,54 +1070,32 @@ async function startServer() {
     const dbObj = getDatabase();
     const bookingIndex = dbObj.bookings.findIndex((b) => b.bookingId === bookingId);
 
-    let booking: any = null;
+    // Bookings live in Firestore; the client sends the booking details with the request.
+    let booking: any = req.body?.booking && req.body.booking.bookingId === bookingId ? req.body.booking : null;
     if (bookingIndex !== -1) {
       dbObj.bookings[bookingIndex].status = "Cancelled";
-      booking = dbObj.bookings[bookingIndex];
+      booking = booking || dbObj.bookings[bookingIndex];
       saveDatabase(dbObj);
     }
 
     const targetRoom = booking ? dbObj.rooms.find((r) => r.roomId === booking.roomId) : null;
-    const roomName = targetRoom ? targetRoom.name : (booking?.roomId || "Meeting Room");
+    const roomName = req.body?.roomName || (targetRoom ? targetRoom.name : undefined);
 
-    // Extract organizer and participant emails ending with @psgroup.in
-    const bookerEmail = booking?.bookerEmail;
-    const rawParticipants = Array.isArray(booking?.participantEmails) ? booking.participantEmails : [];
-    const validParticipants = rawParticipants
-      .map((e: any) => (typeof e === "string" ? e.trim().toLowerCase() : ""))
-      .filter((e: string) => e && e.endsWith("@psgroup.in") && e !== bookerEmail?.toLowerCase());
-
-    const cancelRecipients: string[] = [];
-    if (bookerEmail && bookerEmail.includes("@")) {
-      cancelRecipients.push(bookerEmail);
-    }
-    for (const p of validParticipants) {
-      if (!cancelRecipients.includes(p)) {
-        cancelRecipients.push(p);
+    if (booking) {
+      const { subject, roomDisplayName, recipients, draft } = buildCancellationEmail(booking, bookingId, roomName);
+      const psgRecipients = recipients.filter((e) => e.endsWith("@psgroup.in"));
+      if (psgRecipients.length > 0) {
+        sendEmailNotification(
+          psgRecipients,
+          subject,
+          draft.text,
+          "Normal",
+          bookingId,
+          { ...booking, roomName: roomDisplayName },
+          draft.html,
+          { calendarMethod: "CANCEL" }
+        ).catch(() => {});
       }
-    }
-
-    // Send cancellation notification email strictly to organizer and participants ONLY (not admin)
-    if (cancelRecipients.length > 0) {
-      const subject = `[RESERVATION CANCELLED] ${roomName} - ${booking?.date || ""} ${booking?.startTime || ""}`;
-
-      const cancelDraft = buildStructuredEmailDraft({
-        title: "Meeting Room Reservation Cancelled",
-        badgeText: "CANCELLED",
-        badgeBg: "#ef4444",
-        recipientName: booking?.bookerName || "Employee",
-        summaryText: "This email confirms that your meeting room reservation has been cancelled. The time slot has been released back into the portal for other colleagues to book.",
-        details: [
-          { label: "Reservation ID", value: bookingId },
-          { label: "Meeting Room", value: roomName, highlight: true },
-          { label: "Date & Released Time", value: `${booking?.date || "N/A"} at ${booking?.startTime || "N/A"}` },
-          { label: "Host / Organizer", value: `${booking?.bookerName || "Employee"} (${booking?.bookerEmail || "N/A"})` },
-          { label: "Cancellation Timestamp", value: new Date().toLocaleString() }
-        ],
-        noteText: "If this cancellation was unintended, you can create a new reservation anytime through the Meeting Room Portal."
-      });
-
-      sendEmailNotification(cancelRecipients, subject, cancelDraft.text, "Normal", bookingId, undefined, cancelDraft.html).catch(() => {});
     }
 
     return res.json({
