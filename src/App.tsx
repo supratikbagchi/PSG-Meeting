@@ -65,6 +65,7 @@ import {
   Legend
 } from "recharts";
 import { apiService } from "./services/apiService";
+import { downloadBookingIcs } from "./utils/calendarInvite";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./services/firebase";
 import { User, Room, Booking, NotificationLog, Recommendation, AdminActivityLog, DEPARTMENT_LIST, ExternalGuest } from "./types";
@@ -270,6 +271,7 @@ export default function App() {
     meetingType: string;
     bookingId: string;
     participants?: string[];
+    booking?: Booking;
   } | null>(null);
 
   // Cookie Consent Notice State
@@ -907,7 +909,8 @@ export default function App() {
         fbRequired,
         meetingType,
         bookingId: result.booking?.bookingId || "",
-        participants: finalParticipantEmails
+        participants: finalParticipantEmails,
+        booking: result.booking
       });
       
       // Store locally for subsequent reservations convenience
@@ -937,86 +940,12 @@ export default function App() {
     }
   };
 
-  // Export meeting reservation or IT Support reminder as a standard .ics calendar invite file
-  const handleExportICS = (booking: Booking, roomName: string, isITSupport: boolean = false) => {
+  // Download the booking as an .ics file that the host or any participant can import into Outlook
+  const handleExportICS = (booking: Booking, roomName: string) => {
     try {
-      const [hours, minutes] = booking.startTime.split(":").map(Number);
-      const startDateObj = new Date(booking.date);
-      startDateObj.setHours(hours, minutes, 0, 0);
-      const endDateObj = new Date(startDateObj.getTime() + booking.duration * 60000);
-
-      const formatICSDate = (date: Date) => {
-        return date.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
-      };
-
-      const stamp = formatICSDate(new Date());
-      const startStr = formatICSDate(startDateObj);
-      const endStr = formatICSDate(endDateObj);
-
-      const summary = isITSupport
-        ? `[IT Support Required] ${roomName} - ${booking.reason || "Meeting"}`
-        : `[Reserved] ${roomName} Meeting`;
-
-      const descriptionLines = isITSupport
-        ? [
-            `IT HELPDESK ACTION REQUIRED`,
-            `==================================`,
-            `Meeting Room: ${roomName}`,
-            `Date: ${booking.date}`,
-            `Time: ${booking.startTime} (${booking.duration} Minutes)`,
-            `Host Name: ${booking.bookerName || "Employee"}`,
-            `Host Email: ${booking.bookerEmail || "N/A"}`,
-            `Agenda: ${booking.reason || "N/A"}`,
-            `Target Email: ithelpdesk@psgroup.in`,
-            `Action: Setup IT & AV Support prior to meeting start`
-          ]
-        : [
-            `Meeting Room Reservation Details`,
-            `==================================`,
-            `Room Name: ${roomName}`,
-            `Booked By: ${booking.bookerName || "Employee"} (${booking.bookerEmail || ""})`,
-            `Reason: ${booking.reason || "N/A"}`,
-            `IT Support Required: ${booking.itSupportRequired ? "Yes ✅" : "No ❌"}`,
-            `F&B Required: ${booking.fbRequired ? "Yes ✅" : "No ❌"}`
-          ];
-
-      const icsContent = [
-        "BEGIN:VCALENDAR",
-        "VERSION:2.0",
-        "PRODID:-//PS Group//Meeting Room Portal//EN",
-        "CALSCALE:GREGORIAN",
-        "METHOD:PUBLISH",
-        "BEGIN:VEVENT",
-        `UID:booking-${booking.bookingId}${isITSupport ? "-it" : ""}@psgroup.com`,
-        `DTSTAMP:${stamp}`,
-        `DTSTART:${startStr}`,
-        `DTEND:${endStr}`,
-        `SUMMARY:${summary}`,
-        `LOCATION:${roomName}`,
-        `DESCRIPTION:${descriptionLines.join("\\n")}`,
-        "STATUS:CONFIRMED",
-        "SEQUENCE:0",
-        "BEGIN:VALARM",
-        "TRIGGER:-PT15M",
-        "ACTION:DISPLAY",
-        `DESCRIPTION:${isITSupport ? "IT Support Required Reminder" : "Meeting Room Reservation Reminder"}`,
-        "END:VALARM",
-        "END:VEVENT",
-        "END:VCALENDAR"
-      ].join("\r\n");
-
-      const blob = new Blob([icsContent], { type: "text/calendar;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      const filePrefix = isITSupport ? "IT_Support_" : "Meeting_Room_";
-      link.setAttribute("download", `${filePrefix}${roomName.replace(/\s+/g, "_")}_${booking.bookingId.substring(0, 8)}.ics`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      downloadBookingIcs(booking, roomName);
     } catch (err: any) {
-      alert("Failed to export calendar invitation: " + err.message);
+      alert("Failed to export calendar invitation: " + (err?.message || String(err)));
     }
   };
 
@@ -3470,7 +3399,7 @@ export default function App() {
                                       <>
                                         <button
                                           id={`ics-btn-${booking.bookingId}`}
-                                          onClick={() => handleExportICS(booking, roomName, false)}
+                                          onClick={() => handleExportICS(booking, roomName)}
                                           className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-900 border border-blue-200 rounded text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 shrink-0"
                                           title="Download calendar event file (.ics) for your calendar"
                                         >
@@ -5577,7 +5506,19 @@ export default function App() {
                 )}
               </div>
 
-              <div className="flex justify-end">
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+                {confirmedModalData.booking && (
+                  <button
+                    type="button"
+                    id="confirm-modal-ics-btn"
+                    onClick={() => handleExportICS(confirmedModalData.booking!, confirmedModalData.roomName)}
+                    className="px-5 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    title="Download this meeting as an .ics file and open it in Outlook"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>Add to Outlook calendar (.ics)</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setConfirmedModalData(null)}
