@@ -1,3 +1,4 @@
+/** Suggested departments offered when an organisation sets up its own list. */
 export const DEPARTMENT_LIST = [
   "BIM",
   "Budgeting and Cost Control",
@@ -31,14 +32,94 @@ export interface User {
   email: string;
   name: string;
   role: "User" | "Admin";
+  orgRole?: "owner" | "admin" | "member";
+  status?: "active" | "pending" | "disabled";
   isApproved: boolean;
   emailVerified?: boolean;
-  verificationToken?: string;
-  resetPasswordToken?: string;
-  resetPasswordExpires?: number;
   createdAt: string;
   department?: string;
-  passwordHash?: string;
+}
+
+export type PlanTier = "starter" | "business" | "enterprise";
+export type SubscriptionStatus = "trialing" | "active" | "past_due" | "cancelled" | "expired";
+
+export interface Plan {
+  tier: PlanTier;
+  name: string;
+  monthlyPriceInr: number | null;
+  roomLimit: number | null;
+  userLimit: number | null;
+  features: string[];
+}
+
+export interface OrgSettings {
+  workdayStart: string;
+  workdayEnd: string;
+  maxDurationMins: number;
+  maxAdvanceDays: number;
+  bufferMins: number;
+  slotStepMins: number;
+  departments: string[];
+}
+
+export interface Org {
+  orgId: string;
+  name: string;
+  logoUrl?: string;
+  timezone: string;
+  emailDomains: string[];
+  restrictParticipantsToDomains: boolean;
+  allowDomainSignup?: boolean;
+  requireApproval?: boolean;
+  ownerUid?: string;
+  createdAt?: string;
+  settings: OrgSettings;
+  notifications: { itEmail?: string; hospitalityEmail?: string; contactEmail?: string };
+  subscription: {
+    tier: PlanTier;
+    planName: string;
+    status: SubscriptionStatus;
+    canWrite: boolean;
+    trialEndsAt?: string;
+    currentPeriodEnd?: string;
+    graceEndsAt?: string;
+    roomLimit: number | null;
+    userLimit: number | null;
+  };
+}
+
+export interface Session {
+  auth: { uid: string; email: string; emailVerified: boolean };
+  isPlatformAdmin: boolean;
+  user: User | null;
+  org: Org | null;
+  pendingInvites: { token: string; orgName: string; role: string }[];
+  domainOrg: { orgId: string; name: string; requireApproval: boolean } | null;
+  plans: Plan[];
+}
+
+export interface OrgInvite {
+  token: string;
+  orgId: string;
+  orgName: string;
+  email: string;
+  role: "admin" | "member";
+  invitedBy: string;
+  createdAt: string;
+  expiresAt: string;
+  expired?: boolean;
+  link?: string;
+}
+
+export interface PlatformOrg {
+  orgId: string;
+  name: string;
+  emailDomains: string[];
+  createdAt: string;
+  ownerUid: string;
+  members: number;
+  rooms: number;
+  subscription: Org["subscription"] & { effectiveStatus: SubscriptionStatus; provider?: string };
 }
 
 export interface Room {

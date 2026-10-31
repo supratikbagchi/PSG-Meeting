@@ -68,7 +68,12 @@ import { apiService } from "./services/apiService";
 import { downloadBookingIcs } from "./utils/calendarInvite";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./services/firebase";
-import { User, Room, Booking, NotificationLog, Recommendation, AdminActivityLog, DEPARTMENT_LIST, ExternalGuest } from "./types";
+import { User, Room, Booking, NotificationLog, Recommendation, AdminActivityLog, ExternalGuest, Session, OrgSettings } from "./types";
+import { APP_NAME, DEFAULT_RULES, addDaysISO, formatTime12, slotTimes } from "./brand";
+import Onboarding from "./components/Onboarding";
+import OrgAdminPanel from "./components/OrgAdminPanel";
+import PlatformConsole from "./components/PlatformConsole";
+import SubscriptionBanner from "./components/SubscriptionBanner";
 
 // Helper to parse floor numbers accurately (e.g. "6th Floor" -> 6, "1st Floor" -> 1, "Ground Floor" -> 0)
 const parseFloorNumber = (f?: string | number): number => {
@@ -108,50 +113,34 @@ function formatError(err: any): string {
   return message;
 }
 
-// Utility to retrieve API URL base for backend services when deployed externally
-function getApiUrl(path: string): string {
-  // Option to configure a custom API URL in environment variables
-  const envApiUrl = (import.meta as any).env?.VITE_API_URL;
-  if (envApiUrl) {
-    return `${envApiUrl.replace(/\/$/, "")}${path}`;
-  }
-
-  // Fallback to the live Cloud Run production container URL if hosted externally (e.g., Vercel)
-  const isCloudRunOrLocal =
-    window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1" ||
-    window.location.hostname.endsWith("run.app");
-
-  if (!isCloudRunOrLocal) {
-    const cloudRunBase = "https://ais-pre-jeqaeefd3h7gpit4pq6mfe-563717408510.asia-east1.run.app";
-    return `${cloudRunBase}${path}`;
-  }
-
-  return path;
-}
-
 export default function App() {
-  // Session States
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    return apiService.getCachedUser();
-  });
-  const [sessionLoading, setSessionLoading] = useState(() => {
-    return !apiService.getCachedUser();
-  });
+  // Session States: Firebase sign-in + the server's view of the user's organisation
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const [session, setSession] = useState<Session | null>(null);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [firebaseSignedIn, setFirebaseSignedIn] = useState(false);
+  const [platformOnly, setPlatformOnly] = useState(false);
 
   // View & Navigation States
   const [authMode, setAuthMode] = useState<"login" | "register" | "forgot">("login");
-  const [activeTab, setActiveTab] = useState<"book" | "my-bookings" | "dashboard" | "admin" | "room-configurator" | "feedback">("book");
+  const [activeTab, setActiveTab] = useState<"book" | "my-bookings" | "dashboard" | "admin" | "room-configurator" | "feedback" | "organisation" | "platform">("book");
 
-  // Admin status check helper
-  const isAdmin = Boolean(
-    currentUser && (
-      currentUser.role === "Admin" ||
-      currentUser.role?.toLowerCase() === "admin" ||
-      currentUser.email?.toLowerCase().includes("admin") ||
-      currentUser.name?.toLowerCase().includes("admin")
-    )
+  // Roles come from the server (organisation owner/admin → "Admin")
+  const isAdmin = currentUser?.role === "Admin";
+  const isPlatformAdmin = !!session?.isPlatformAdmin;
+  const org = session?.org || null;
+  const rules: OrgSettings = org?.settings || DEFAULT_RULES;
+  const canWrite = org?.subscription.canWrite !== false;
+  const orgContactEmail = org?.notifications?.contactEmail || "";
+  const timeOptions = useMemo(() => slotTimes(rules), [rules.workdayStart, rules.workdayEnd, rules.slotStepMins]);
+  const durationOptions = useMemo(
+    () => [15, 30, 45, 60, 90, 120, 180, 240, 480].filter((d) => d <= rules.maxDurationMins),
+    [rules.maxDurationMins]
   );
+  const officeHoursLabel = `${formatTime12(rules.workdayStart)} – ${formatTime12(rules.workdayEnd)}`;
+  const isAllowedParticipantEmail = (email: string) =>
+    !org?.restrictParticipantsToDomains || !org.emailDomains.length || org.emailDomains.includes(email.split("@")[1] || "");
   const [searchTargetTime, setSearchTargetTime] = useState<string>("");
   const [searchFloors, setSearchFloors] = useState<string[]>(["All"]);
 
@@ -181,6 +170,13 @@ export default function App() {
   const [adminUsers, setAdminUsers] = useState<User[]>([]);
   const [notificationLogs, setNotificationLogs] = useState<NotificationLog[]>([]);
   const [adminActivities, setAdminActivities] = useState<AdminActivityLog[]>([]);
+  const departmentOptions = useMemo(() => {
+    if (rules.departments?.length) return rules.departments;
+    const seen = new Set<string>();
+    bookings.forEach((b) => b.department && seen.add(b.department));
+    adminUsers.forEach((u) => u.department && seen.add(u.department));
+    return [...seen].sort();
+  }, [rules.departments, bookings, adminUsers]);
 
   // Loading & Global Error States
   const [roomsLoading, setRoomsLoading] = useState(false);
@@ -292,8 +288,8 @@ export default function App() {
       alert("Please enter a valid email address.");
       return;
     }
-    if (!email.endsWith("@psgroup.in")) {
-      alert("Internal participant emails must be official @psgroup.in email addresses.");
+    if (!isAllowedParticipantEmail(email)) {
+      alert(`Participants must use your organisation's email domain (${org?.emailDomains.join(", ")}).`);
       return;
     }
     if (participantEmails.includes(email)) {
@@ -352,7 +348,6 @@ export default function App() {
       return updated;
     });
   };
-  const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
 
   // New Checkbox, Search, and IT Support Notification States
   const [itSupportRequired, setItSupportRequired] = useState(false);
@@ -404,67 +399,33 @@ export default function App() {
   const [pendingUserCount, setPendingUserCount] = useState(0);
   const [pendingBookingCount, setPendingBookingCount] = useState(0);
 
-  // Verify Auth Session On Mount with real-time Firebase Auth listener
-  useEffect(() => {
-    if (!currentUser) {
-      setSessionLoading(true);
+  // Load the server session (organisation, role, subscription) for the signed-in Firebase user
+  const loadSession = useCallback(async () => {
+    try {
+      const s = await apiService.getSession();
+      setSession(s);
+      setSessionError(null);
+      setCurrentUser(s.user && s.user.status === "active" ? s.user : null);
+    } catch (err: any) {
+      setSessionError(formatError(err));
+      setCurrentUser(null);
     }
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        if (firebaseUser.isAnonymous) {
-          setCurrentUser(null);
-          localStorage.removeItem("ps_booking_user");
-          localStorage.removeItem("ps_booking_token");
-        } else {
-          try {
-            const userDoc = await apiService.getUserDoc(firebaseUser.uid);
-            const userEmail = (firebaseUser.email || userDoc?.email || "").toLowerCase();
-            const userName = (firebaseUser.displayName || userDoc?.name || "").toLowerCase();
-            const isAdminUser = Boolean(
-              userDoc?.role === "Admin" ||
-              userDoc?.role?.toLowerCase() === "admin" ||
-              userEmail.includes("admin") ||
-              userName.includes("admin")
-            );
+  }, []);
 
-            if (userDoc) {
-              const fullUser: User = {
-                ...userDoc,
-                role: isAdminUser ? "Admin" : (userDoc.role || "User"),
-                isApproved: true,
-                emailVerified: true
-              };
-              setCurrentUser(fullUser);
-              localStorage.setItem("ps_booking_user", JSON.stringify(fullUser));
-              apiService.updateUser(firebaseUser.uid, { role: fullUser.role, emailVerified: true, isApproved: true }).catch(() => {});
-            } else {
-              const defaultUser: User = {
-                uid: firebaseUser.uid,
-                email: firebaseUser.email || "",
-                name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
-                role: isAdminUser ? "Admin" : "User",
-                isApproved: true,
-                createdAt: new Date().toISOString(),
-                emailVerified: true
-              };
-              setCurrentUser(defaultUser);
-              localStorage.setItem("ps_booking_user", JSON.stringify(defaultUser));
-              apiService.updateUser(firebaseUser.uid, defaultUser).catch(() => {});
-            }
-          } catch (err) {
-            console.error("Error restoring user session on state change:", err);
-          }
-        }
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      const signedIn = !!firebaseUser && !firebaseUser.isAnonymous;
+      setFirebaseSignedIn(signedIn);
+      if (signedIn) {
+        await loadSession();
       } else {
-        // No user logged in! Setting to null instead of guest-user fallback.
+        setSession(null);
         setCurrentUser(null);
-        localStorage.removeItem("ps_booking_user");
-        localStorage.removeItem("ps_booking_token");
       }
       setSessionLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [loadSession]);
 
   // Fetch Rooms & Bookings
   const fetchRoomsData = useCallback(async () => {
@@ -480,11 +441,12 @@ export default function App() {
   }, []);
 
   const fetchBookingsData = useCallback(async () => {
+    if (!auth.currentUser) return;
     setBookingsLoading(true);
     try {
       const [bookingsData, usersList] = await Promise.all([
         apiService.getBookings(),
-        apiService.getAdminUsers().catch(() => [])
+        isAdmin ? apiService.getAdminUsers().catch(() => [] as User[]) : Promise.resolve([] as User[])
       ]);
       setBookings(bookingsData);
       if (usersList && usersList.length > 0) {
@@ -496,7 +458,7 @@ export default function App() {
     } finally {
       setBookingsLoading(false);
     }
-  }, []);
+  }, [isAdmin]);
 
   // Fetch Admin Specific Data
   const fetchAdminData = useCallback(async () => {
@@ -519,14 +481,15 @@ export default function App() {
     }
   }, [currentUser, isAdmin]);
 
-  // Load standard data on mount and on user changes
+  // Load standard data once the user is an active member of an organisation
   useEffect(() => {
+    if (!currentUser) return;
     fetchRoomsData();
     fetchBookingsData();
     if (isAdmin) {
       fetchAdminData();
     }
-  }, [currentUser, isAdmin, fetchRoomsData, fetchBookingsData, fetchAdminData]);
+  }, [currentUser?.uid, isAdmin, fetchRoomsData, fetchBookingsData, fetchAdminData]);
 
   // Handle Availability Search
   const triggerAvailabilityCheck = async (e?: React.FormEvent, resetSelection = false) => {
@@ -535,20 +498,12 @@ export default function App() {
     setBookingSuccess(null);
     setBookingError(null);
 
-    const todayObj = new Date();
-    const maxDateObj = new Date();
-    maxDateObj.setDate(todayObj.getDate() + 5);
-    const maxBookingDateISO = maxDateObj.toLocaleDateString("en-CA");
-
+    const maxBookingDateISO = addDaysISO(new Date().toLocaleDateString("en-CA"), rules.maxAdvanceDays);
     if (searchDate > maxBookingDateISO) {
-      setBookingError(`Bookings are restricted to up to 5 days in advance. You cannot book beyond ${maxBookingDateISO}.`);
+      setBookingError(`Bookings can be made up to ${rules.maxAdvanceDays} days in advance (until ${maxBookingDateISO}).`);
       setSearchingAvailability(false);
       return;
     }
-
-    const now = new Date();
-    const clientDate = now.toLocaleDateString("en-CA");
-    const clientTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 
     try {
       const results = await apiService.checkAvailability({
@@ -557,8 +512,6 @@ export default function App() {
         duration: searchDuration,
         features: selectedFeatures,
         floor: searchFloors.includes("All") || searchFloors.length === 0 ? "All" : searchFloors.join(","),
-        clientDate,
-        clientTime,
       });
       setRecommendations(results);
       // Only clear selected slot details if explicitly requested (e.g. form search submission)
@@ -573,31 +526,26 @@ export default function App() {
     }
   };
 
-  // Automatically fetch recommendations on initial layout load (no repeating interval)
+  // Deep link from the "how was your meeting?" email: /?feedback=<bookingId>
   useEffect(() => {
-    triggerAvailabilityCheck(undefined, false);
-    fetchBookingsData();
-  }, []);
-
-  // Handle URL actions for email verification or password reset links
-  useEffect(() => {
+    if (!currentUser) return;
     const params = new URLSearchParams(window.location.search);
-    const action = params.get("action");
-    const token = params.get("token");
-    const email = params.get("email");
-
-    if (action === "verify-email" && token && email) {
-      apiService.verifyEmail(email, token).then((res) => {
-        setLoginEmail(email);
-        setLoginError(null);
-        setRegSuccess(res || "Email address verified successfully! You can now sign in.");
-        setAuthMode("login");
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }).catch((err) => {
-        setLoginError(err.message || "Failed to verify email token.");
-      });
+    const fb = params.get("feedback");
+    if (fb) {
+      setFeedbackSelectedBookingId(fb);
+      setActiveTab("feedback");
+      apiService.getFeedbacks().then(setFeedbacks).catch(() => undefined);
+      params.delete("feedback");
+      window.history.replaceState({}, document.title, window.location.pathname + (params.toString() ? `?${params}` : ""));
     }
-  }, []);
+  }, [currentUser?.uid]);
+
+  // Fetch recommendations once the member's session is ready (no repeating interval)
+  useEffect(() => {
+    if (!currentUser) return;
+    if (searchDuration > rules.maxDurationMins) setSearchDuration(rules.maxDurationMins);
+    triggerAvailabilityCheck(undefined, false);
+  }, [currentUser?.uid]);
 
   // Dynamic room features dynamically fetched and aggregated from all rooms configured in the database
   const availableDatabaseFeatures = useMemo(() => {
@@ -616,10 +564,11 @@ export default function App() {
 
   // Restrict Dashboard and Admin tabs: Automatically redirect non-admin users to the reservation desk
   useEffect(() => {
-    if (!isAdmin && (activeTab === "dashboard" || activeTab === "admin" || activeTab === "room-configurator")) {
+    if (!isAdmin && (activeTab === "dashboard" || activeTab === "admin" || activeTab === "room-configurator" || activeTab === "organisation")) {
       setActiveTab("book");
     }
-  }, [isAdmin, activeTab]);
+    if (!isPlatformAdmin && activeTab === "platform") setActiveTab("book");
+  }, [isAdmin, isPlatformAdmin, activeTab]);
 
   // Dynamic floor list for multi-select search filter (includes 1st..6th floor and any custom room floor)
   const defaultFloors = ["1st Floor", "2nd Floor", "3rd Floor", "4th Floor", "5th Floor", "6th Floor"];
@@ -693,36 +642,10 @@ export default function App() {
     setLoginError(null);
     setLoginLoading(true);
     try {
-      const response = await apiService.login(loginEmail, loginPassword);
-      setCurrentUser(response.user);
+      await apiService.login(loginEmail, loginPassword);
+      // onAuthStateChanged loads the session
       setLoginEmail("");
       setLoginPassword("");
-    } catch (err: any) {
-      setLoginError(formatError(err));
-    } finally {
-      setLoginLoading(false);
-    }
-  };
-
-  const handleAdminLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginError(null);
-    setLoginLoading(true);
-    try {
-      const response = await apiService.login(loginEmail, loginPassword);
-      const adminUser: User = {
-        ...response.user,
-        role: "Admin",
-        isApproved: true,
-        emailVerified: true
-      };
-      await apiService.updateUser(adminUser.uid, { role: "Admin", isApproved: true, emailVerified: true }).catch(() => {});
-      setCurrentUser(adminUser);
-      localStorage.setItem("ps_booking_user", JSON.stringify(adminUser));
-      setLoginEmail("");
-      setLoginPassword("");
-      setShowAdminLoginModal(false);
-      setActiveTab("admin");
     } catch (err: any) {
       setLoginError(formatError(err));
     } finally {
@@ -735,30 +658,21 @@ export default function App() {
     setRegError(null);
     setRegSuccess(null);
 
-    const cleanEmail = regEmail.toLowerCase().trim();
-    if (!cleanEmail.endsWith("@psgroup.in")) {
-      setRegError("Registration is restricted to official @psgroup.in email addresses only. External domains (such as Gmail or Yahoo) are not permitted.");
-      return;
-    }
-
-    if (!regDepartment.trim()) {
-      setRegError("Department field is mandatory.");
-      return;
-    }
-
     if (regPassword !== regConfirmPassword) {
       setRegError("Passwords do not match. Please re-enter passwords.");
+      return;
+    }
+    if (regPassword.length < 8) {
+      setRegError("Please choose a password of at least 8 characters.");
       return;
     }
 
     setRegLoading(true);
     try {
-      const response = await apiService.register(regEmail, regPassword, regName, regDepartment);
+      const response = await apiService.register(regEmail, regPassword, regName);
       setRegSuccess(response.message);
-      // reset fields
       setRegName("");
       setRegEmail("");
-      setRegDepartment("");
       setRegPassword("");
       setRegConfirmPassword("");
     } catch (err: any) {
@@ -768,9 +682,10 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
-    apiService.logout();
+  const handleLogout = async () => {
+    await apiService.logout();
     setCurrentUser(null);
+    setSession(null);
     setActiveTab("book");
   };
 
@@ -835,17 +750,14 @@ export default function App() {
       }
     }
 
-    if (Number(searchDuration) > 60) {
-      setBookingError("Meeting duration is restricted to a maximum of 1 hour (60 minutes).");
+    if (Number(searchDuration) > rules.maxDurationMins) {
+      setBookingError(`Meetings are limited to ${rules.maxDurationMins} minutes.`);
       return;
     }
 
-    const todayObj = new Date();
-    const maxDateObj = new Date();
-    maxDateObj.setDate(todayObj.getDate() + 5);
-    const maxBookingDateISO = maxDateObj.toLocaleDateString("en-CA");
+    const maxBookingDateISO = addDaysISO(new Date().toLocaleDateString("en-CA"), rules.maxAdvanceDays);
     if (searchDate > maxBookingDateISO) {
-      setBookingError(`Bookings are restricted to up to 5 days in advance. You cannot book beyond ${maxBookingDateISO}.`);
+      setBookingError(`Bookings can be made up to ${rules.maxAdvanceDays} days in advance (until ${maxBookingDateISO}).`);
       return;
     }
 
@@ -978,7 +890,7 @@ export default function App() {
         roomName,
         userId: currentUser?.uid || "GUEST",
         userName: currentUser?.name || bookerName || "Employee",
-        userEmail: currentUser?.email || bookerEmail || "employee@psgroup.in",
+        userEmail: currentUser?.email || bookerEmail,
         ratingAmenities: feedbackAmenitiesRating,
         ratingApp: feedbackAppRating,
         comments: feedbackComments.trim()
@@ -995,50 +907,6 @@ export default function App() {
       setFeedbackError(err.message || "Failed to submit feedback.");
     } finally {
       setFeedbackSubmitting(false);
-    }
-  };
-
-  // Helper to trigger direct server email dispatch to IT Team (it@psgroup.in)
-  const handleEmailITHelpdesk = async (booking: Booking, roomName: string) => {
-    try {
-      const res = await fetch(getApiUrl("/api/notify-it-helpdesk"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ booking, roomName })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        alert(`Server Email Dispatched to IT Team (it@psgroup.in)!\n\nStatus: ${data.status.toUpperCase()}\nDetails: ${data.message}`);
-        fetchAdminData();
-      } else {
-        alert("Server email dispatch failed. Please check backend service status.");
-      }
-    } catch (err: any) {
-      alert("Error triggering server email dispatch: " + (err.message || String(err)));
-    }
-  };
-
-  const handleSendTestITEmail = async () => {
-    try {
-      setAdminLoading(true);
-      const res = await fetch(getApiUrl("/api/send-email"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: "it@psgroup.in",
-          subject: "[TEST DISPATCH] IT Helpdesk Notification Test",
-          body: "This is a diagnostic test email to verify outbound notification email connectivity for IT Support dispatch.",
-          priority: "High",
-          bookingId: "test-booking"
-        })
-      });
-      const data = await res.json();
-      alert(`Outbound Email Dispatch Diagnostic:\n\nStatus: ${data.status.toUpperCase()}\nDetails: ${data.message}`);
-      fetchAdminData();
-    } catch (err: any) {
-      alert("Test email failed: " + err.message);
-    } finally {
-      setAdminLoading(false);
     }
   };
 
@@ -1194,30 +1062,47 @@ export default function App() {
     }
   };
 
-  // Admin Actions: Trigger 2-minute persistent loops manually
-  const handleManualAlertTrigger = async () => {
-    setAdminLoading(true);
-    try {
-      const response = await apiService.triggerAlertLoop();
-      alert(response.message);
-      fetchAdminData();
-    } catch (err: any) {
-      alert("Error triggering alarm checker: " + err.message);
-    } finally {
-      setAdminLoading(false);
-    }
-  };
-
   // Loading Splash Screen
   if (sessionLoading) {
     return (
       <div className="min-h-screen flex flex-col justify-center items-center bg-slate-50">
         <div className="flex flex-col items-center">
           <RefreshCw className="h-10 w-10 text-slate-800 animate-spin mb-4" />
-          <h1 className="text-xl font-display font-bold tracking-tight text-slate-900">Meeting Room Booking Portal</h1>
-          <p className="text-sm text-slate-500 mt-1">Verifying corporate credentials...</p>
+          <h1 className="text-xl font-display font-bold tracking-tight text-slate-900">{APP_NAME}</h1>
+          <p className="text-sm text-slate-500 mt-1">Signing you in…</p>
         </div>
       </div>
+    );
+  }
+
+  // ==================== ONBOARDING (signed in, but not an active member yet) ====================
+  if (firebaseSignedIn && !currentUser) {
+    if (platformOnly && session?.isPlatformAdmin) {
+      return (
+        <div className="min-h-screen bg-slate-50">
+          <header className="bg-slate-900 text-white px-4 py-4">
+            <div className="max-w-7xl mx-auto flex justify-between items-center gap-3">
+              <span className="font-bold">{APP_NAME} · Platform console</span>
+              <span className="flex gap-4 text-xs">
+                <button className="underline cursor-pointer" onClick={() => setPlatformOnly(false)}>Back</button>
+                <button className="underline cursor-pointer" onClick={handleLogout}>Sign out</button>
+              </span>
+            </div>
+          </header>
+          <main className="max-w-7xl mx-auto px-4 py-8">
+            <PlatformConsole plans={session.plans} />
+          </main>
+        </div>
+      );
+    }
+    return (
+      <Onboarding
+        session={session}
+        error={sessionError}
+        onRefresh={loadSession}
+        onLogout={handleLogout}
+        onOpenPlatform={session?.isPlatformAdmin ? () => setPlatformOnly(true) : undefined}
+      />
     );
   }
 
@@ -1236,8 +1121,8 @@ export default function App() {
                 <Calendar className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-display font-bold tracking-tight">PS Group</h1>
-                <p className="text-xs text-slate-400">Meeting Room Booking Portal</p>
+                <h1 className="text-xl font-display font-bold tracking-tight">{APP_NAME}</h1>
+                <p className="text-xs text-slate-400">Book meeting rooms for your whole office</p>
               </div>
             </div>
           </div>
@@ -1362,7 +1247,7 @@ export default function App() {
                     onChange={(e) => setLoginEmail(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
                   />
-                  <p className="text-[10px] text-slate-400">Please log in with your registered email.</p>
+                  <p className="text-[10px] text-slate-400">Use your work email. New here? Register to start a free trial for your office or join your team.</p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -1444,32 +1329,12 @@ export default function App() {
                     id="reg-email"
                     type="email"
                     required
-                    placeholder="yourname@psgroup.in"
+                    placeholder="you@yourcompany.com"
                     value={regEmail}
                     onChange={(e) => setRegEmail(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
                   />
-                  <p className="text-[10px] text-slate-500 font-medium">⚠️ Only official company email addresses ending with <strong className="text-blue-700">@psgroup.in</strong> can register.</p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label htmlFor="reg-department" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                    Department <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    id="reg-department"
-                    required
-                    value={regDepartment}
-                    onChange={(e) => setRegDepartment(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all cursor-pointer font-medium"
-                  >
-                    <option value="" disabled>-- Select Your Department --</option>
-                    {DEPARTMENT_LIST.map((dept) => (
-                      <option key={dept} value={dept}>
-                        {dept}
-                      </option>
-                    ))}
-                  </select>
+                  <p className="text-[10px] text-slate-500 font-medium">Use your work email so colleagues on the same domain can join your organisation.</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -1508,7 +1373,7 @@ export default function App() {
                   className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-850 text-white rounded-lg text-sm font-semibold shadow-md transition-all flex justify-center items-center cursor-pointer disabled:opacity-55"
                 >
                   {regLoading ? <RefreshCw className="h-4 w-4 animate-spin text-blue-500 mr-2" /> : null}
-                  Register Account
+                  Create Account
                 </button>
               </form>
             )}
@@ -1526,9 +1391,6 @@ export default function App() {
       return dept;
     }
     if (booking.bookerEmail) {
-      if (booking.bookerEmail.toLowerCase().includes("supratik@psgroup.in")) {
-        return "Secretarial";
-      }
       const match = adminUsers.find(
         (u) => u.email?.toLowerCase() === booking.bookerEmail?.toLowerCase() || u.uid === booking.userId
       );
@@ -1578,39 +1440,7 @@ export default function App() {
         </div>
       )}
 
-      {currentUser && !currentUser.emailVerified && !currentUser.isApproved && !isAdmin && (
-        <div className="bg-amber-500 text-slate-950 text-xs px-4 py-3 flex justify-between items-center z-40 border-b border-amber-600 font-medium">
-          <div className="flex items-center space-x-2 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8">
-            <AlertTriangle className="h-4 w-4 shrink-0 text-slate-900 animate-bounce" />
-            <span>
-              <strong>Verification Required:</strong> Please check your inbox to verify your account before booking.
-            </span>
-            <button
-              id="top-resend-verification-btn"
-              onClick={async () => {
-                try {
-                  if (auth.currentUser) {
-                    await auth.currentUser.reload();
-                    if (auth.currentUser.emailVerified) {
-                      setCurrentUser(prev => prev ? { ...prev, emailVerified: true } : null);
-                      alert("Your email has been verified! You can now book rooms.");
-                    } else {
-                      const { sendEmailVerification } = await import("firebase/auth");
-                      await sendEmailVerification(auth.currentUser);
-                      alert("Verification email resent to " + auth.currentUser.email);
-                    }
-                  }
-                } catch (err: any) {
-                  alert("Error: " + (err.message || "Failed to resend verification email."));
-                }
-              }}
-              className="ml-auto bg-slate-950 hover:bg-slate-850 text-white font-bold px-3 py-1 rounded transition-colors cursor-pointer text-[10px]"
-            >
-              Verify / Resend
-            </button>
-          </div>
-        </div>
-      )}
+      <SubscriptionBanner org={org} isAdmin={isAdmin} onManage={() => setActiveTab("organisation")} />
 
       {/* Main Premium Corporate Header */}
       <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-30">
@@ -1618,15 +1448,21 @@ export default function App() {
           <div className="flex justify-between h-16">
             {/* Logo Group */}
             <div className="flex items-center space-x-3">
-              <img
-                src="/PSG_LOGO.jpg"
-                alt="PS Group Logo"
-                className="h-10 sm:h-11 w-auto object-contain shrink-0 rounded-md border border-slate-100 shadow-2xs bg-white p-0.5"
-                referrerPolicy="no-referrer"
-              />
+              {org?.logoUrl ? (
+                <img
+                  src={org.logoUrl}
+                  alt={`${org.name} logo`}
+                  className="h-10 sm:h-11 w-auto object-contain shrink-0 rounded-md border border-slate-100 shadow-2xs bg-white p-0.5"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="h-10 w-10 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
+                  <Calendar className="h-6 w-6 text-white" />
+                </div>
+              )}
               <div className="hidden sm:block border-l border-slate-200 pl-3">
                 <span className="text-sm font-display font-bold tracking-tight text-slate-900 block leading-tight">
-                  PS Group Realty Pvt. Ltd.
+                  {org?.name || APP_NAME}
                 </span>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block -mt-0.5">
                   Meeting Room Portal
@@ -1645,23 +1481,19 @@ export default function App() {
                   >
                     <span className="text-xs font-bold text-slate-800 group-hover:text-blue-600 flex items-center gap-1">
                       <UserCheck className="w-3.5 h-3.5 text-blue-600" />
-                      {currentUser?.name || "PS Group Admin"}
+                      {currentUser?.name || "Admin"}
                     </span>
                     <span className="text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full mt-0.5 font-sans bg-blue-100 text-blue-800 border border-blue-200 flex items-center gap-1 font-bold">
                       <Shield className="w-2.5 h-2.5 text-blue-600" />
-                      <span>✓ VERIFIED ADMIN (VIEW PROFILE)</span>
+                      <span>{currentUser?.orgRole === "owner" ? "OWNER" : "ADMIN"} (VIEW PROFILE)</span>
                     </span>
                   </button>
                   <button
                     id="admin-logout-btn"
-                    onClick={() => {
-                      apiService.logout();
-                      setCurrentUser(null);
-                      setActiveTab("book");
-                    }}
+                    onClick={handleLogout}
                     className="text-xs text-red-500 hover:text-red-700 font-semibold cursor-pointer border border-red-100 bg-red-50/50 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-all"
                   >
-                    Logout Admin
+                    Sign Out
                   </button>
                 </>
               ) : currentUser ? (
@@ -1676,16 +1508,12 @@ export default function App() {
                       {currentUser.name}
                     </span>
                     <span className="text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full mt-0.5 font-sans bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold">
-                      ✓ VERIFIED EMPLOYEE (VIEW PROFILE)
+                      MEMBER (VIEW PROFILE)
                     </span>
                   </button>
                   <button
                     id="employee-logout-btn"
-                    onClick={() => {
-                      apiService.logout();
-                      setCurrentUser(null);
-                      setActiveTab("book");
-                    }}
+                    onClick={handleLogout}
                     className="text-xs text-red-500 hover:text-red-700 font-semibold cursor-pointer border border-red-100 bg-red-50/50 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-all"
                   >
                     Sign Out
@@ -1711,7 +1539,7 @@ export default function App() {
             </div>
 
             {/* Main Tabs Navigation */}
-            <div className="flex items-center space-x-1.5 mt-4 md:mt-0 bg-slate-800 p-1 rounded-xl">
+            <div className="flex flex-wrap items-center gap-1.5 mt-4 md:mt-0 bg-slate-800 p-1 rounded-xl">
               <button
                 id="tab-book-btn"
                 onClick={() => setActiveTab("book")}
@@ -1818,6 +1646,36 @@ export default function App() {
                   <span>Dashboard</span>
                 </button>
               )}
+
+              {isAdmin && (
+                <button
+                  id="tab-organisation-btn"
+                  onClick={() => setActiveTab("organisation")}
+                  className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
+                    activeTab === "organisation"
+                      ? "bg-blue-600 text-white shadow-md font-bold"
+                      : "text-slate-300 hover:text-white hover:bg-slate-700"
+                  }`}
+                >
+                  <Building className="w-3.5 h-3.5" />
+                  <span>Organisation</span>
+                </button>
+              )}
+
+              {isPlatformAdmin && (
+                <button
+                  id="tab-platform-btn"
+                  onClick={() => setActiveTab("platform")}
+                  className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
+                    activeTab === "platform"
+                      ? "bg-blue-600 text-white shadow-md font-bold"
+                      : "text-slate-300 hover:text-white hover:bg-slate-700"
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Platform</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1826,6 +1684,22 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <AnimatePresence mode="wait">
+          {activeTab === "organisation" && isAdmin && org && currentUser && (
+            <OrgAdminPanel
+              key="organisation"
+              org={org}
+              plans={session?.plans || []}
+              currentUser={currentUser}
+              members={adminUsers}
+              onOrgUpdated={(o) => setSession((prev) => (prev ? { ...prev, org: o } : prev))}
+              onMembersChanged={fetchAdminData}
+            />
+          )}
+
+          {activeTab === "platform" && isPlatformAdmin && (
+            <PlatformConsole key="platform" plans={session?.plans || []} />
+          )}
+
           {/* ==================== TAB 1: RESERVATION DESK ==================== */}
           {activeTab === "book" && (
             <motion.div
@@ -1845,14 +1719,14 @@ export default function App() {
                       <h3 className="font-display font-semibold text-slate-900">Room Preferences</h3>
                     </div>
                     <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200">
-                      🕒 10 AM – 7 PM
+                      🕒 {officeHoursLabel}
                     </span>
                   </div>
 
                   <form onSubmit={triggerAvailabilityCheck} className="space-y-4">
                     <div className="space-y-1">
                       <label htmlFor="search-date" className="block text-xs font-semibold text-slate-600 uppercase">
-                        Date <span className="text-[10px] text-blue-600 font-normal">(Up to 5 days)</span>
+                        Date <span className="text-[10px] text-blue-600 font-normal">(Up to {rules.maxAdvanceDays} days)</span>
                       </label>
                       <div className="relative">
                         <input
@@ -1860,17 +1734,13 @@ export default function App() {
                           type="date"
                           value={searchDate}
                           min={new Date().toLocaleDateString("en-CA")}
-                          max={(() => {
-                            const d = new Date();
-                            d.setDate(d.getDate() + 5);
-                            return d.toLocaleDateString("en-CA");
-                          })()}
+                          max={addDaysISO(new Date().toLocaleDateString("en-CA"), rules.maxAdvanceDays)}
                           onChange={(e) => setSearchDate(e.target.value)}
                           className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
                         />
                         <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                       </div>
-                      <p className="text-[10px] text-slate-400">Bookings permitted up to 5 days in advance.</p>
+                      <p className="text-[10px] text-slate-400">Bookings permitted up to {rules.maxAdvanceDays} days in advance.</p>
                     </div>
 
                     <div className="space-y-1.5">
@@ -1948,42 +1818,9 @@ export default function App() {
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
                       >
                         <option value="">Any Time (Show All Slots)</option>
-                        <option value="10:00">10:00 AM</option>
-                        <option value="10:15">10:15 AM</option>
-                        <option value="10:30">10:30 AM</option>
-                        <option value="10:45">10:45 AM</option>
-                        <option value="11:00">11:00 AM</option>
-                        <option value="11:15">11:15 AM</option>
-                        <option value="11:30">11:30 AM</option>
-                        <option value="11:45">11:45 AM</option>
-                        <option value="12:00">12:00 PM</option>
-                        <option value="12:15">12:15 PM</option>
-                        <option value="12:30">12:30 PM</option>
-                        <option value="12:45">12:45 PM</option>
-                        <option value="13:00">01:00 PM</option>
-                        <option value="13:15">01:15 PM</option>
-                        <option value="13:30">01:30 PM</option>
-                        <option value="13:45">01:45 PM</option>
-                        <option value="14:00">02:00 PM</option>
-                        <option value="14:15">02:15 PM</option>
-                        <option value="14:30">02:30 PM</option>
-                        <option value="14:45">02:45 PM</option>
-                        <option value="15:00">03:00 PM</option>
-                        <option value="15:15">03:15 PM</option>
-                        <option value="15:30">03:30 PM</option>
-                        <option value="15:45">03:45 PM</option>
-                        <option value="16:00">04:00 PM</option>
-                        <option value="16:15">04:15 PM</option>
-                        <option value="16:30">04:30 PM</option>
-                        <option value="16:45">04:45 PM</option>
-                        <option value="17:00">05:00 PM</option>
-                        <option value="17:15">05:15 PM</option>
-                        <option value="17:30">05:30 PM</option>
-                        <option value="17:45">05:45 PM</option>
-                        <option value="18:00">06:00 PM</option>
-                        <option value="18:15">06:15 PM</option>
-                        <option value="18:30">06:30 PM</option>
-                        <option value="18:45">06:45 PM</option>
+                        {timeOptions.map((t) => (
+                          <option key={t} value={t}>{formatTime12(t)}</option>
+                        ))}
                       </select>
                       <p className="text-[10px] text-slate-400">Highlights slots around this time without hiding other available times.</p>
                     </div>
@@ -2009,7 +1846,7 @@ export default function App() {
 
                     <div className="space-y-1">
                       <label htmlFor="search-duration" className="block text-xs font-semibold text-slate-600 uppercase">
-                        Duration <span className="text-[10px] text-amber-600 font-normal">(Max 1 hour)</span>
+                        Duration <span className="text-[10px] text-amber-600 font-normal">(Max {rules.maxDurationMins} min)</span>
                       </label>
                       <div className="relative">
                         <select
@@ -2018,10 +1855,11 @@ export default function App() {
                           onChange={(e) => setSearchDuration(parseInt(e.target.value))}
                           className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all appearance-none"
                         >
-                          <option value="15">15 Minutes</option>
-                          <option value="30">30 Minutes</option>
-                          <option value="45">45 Minutes</option>
-                          <option value="60">1 Hour (Max Allowed)</option>
+                          {durationOptions.map((d) => (
+                            <option key={d} value={d}>
+                              {d < 60 ? `${d} Minutes` : `${d / 60} Hour${d > 60 ? "s" : ""}`}{d === rules.maxDurationMins ? " (Max Allowed)" : ""}
+                            </option>
+                          ))}
                         </select>
                         <Clock className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                       </div>
@@ -2131,7 +1969,7 @@ export default function App() {
                       <h3 className="font-display font-semibold text-slate-900 text-lg flex items-center gap-2">
                         <span>Suggested Available Meeting Rooms</span>
                         <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">
-                          Hours: 10:00 AM – 07:00 PM
+                          Hours: {officeHoursLabel}
                         </span>
                       </h3>
 
@@ -2190,7 +2028,7 @@ export default function App() {
 
                           {/* Horizontal Slots scroll list */}
                           <div className="space-y-2">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Time Slots (30-min intervals):</span>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Time Slots ({rules.slotStepMins}-min intervals):</span>
                             {(!rec.slots || rec.slots.length === 0) && rec.availableSlots.length === 0 ? (
                               <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg border border-amber-100 font-medium">
                                 ⚠️ No slots found for this room on the chosen day.
@@ -2558,7 +2396,7 @@ export default function App() {
 
                                   <div className="flex flex-col space-y-1">
                                     <label className="text-[10px] font-semibold text-slate-400">
-                                      WHOM TO MEET AT PS GROUP <span className="text-red-500">* (Mandatory)</span>
+                                      WHOM TO MEET AT {(org?.name || "OUR OFFICE").toUpperCase()} <span className="text-red-500">* (Mandatory)</span>
                                     </label>
                                     <input
                                       type="text"
@@ -3169,7 +3007,7 @@ export default function App() {
                               <span>Housekeeping</span>
                             </div>
                             <div className={`text-[10px] mt-0.5 ${reservationFilterCategory === "Housekeeping" ? "text-emerald-100" : "text-emerald-700"}`}>
-                              15-min cleanup slots
+                              {rules.bufferMins}-min cleanup slots
                             </div>
                           </div>
                         </button>
@@ -3406,17 +3244,6 @@ export default function App() {
                                           <span>📅 Calendar (.ics)</span>
                                         </button>
 
-                                        {booking.itSupportRequired && (
-                                          <button
-                                            id={`it-mail-btn-${booking.bookingId}`}
-                                            onClick={() => handleEmailITHelpdesk(booking, roomName)}
-                                            className="px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 border border-purple-200 rounded text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 shrink-0"
-                                            title="Trigger automated server email dispatch to it@psgroup.in"
-                                          >
-                                            <Mail className="h-3 w-3 text-purple-600" />
-                                            <span>Send Email to IT</span>
-                                          </button>
-                                        )}
                                       </>
                                     ) : (
                                       <span className="text-xs text-slate-400 font-medium italic">Cancelled</span>
@@ -3712,7 +3539,7 @@ export default function App() {
                                     {tempDepartment === "All" && <Check className="h-4 w-4 text-blue-400" />}
                                   </button>
 
-                                  {DEPARTMENT_LIST.filter(d => d.toLowerCase().includes(deptSearchInModal.toLowerCase().trim())).map((dept) => {
+                                  {departmentOptions.filter(d => d.toLowerCase().includes(deptSearchInModal.toLowerCase().trim())).map((dept) => {
                                     const isSelected = tempDepartment === dept;
                                     return (
                                       <button
@@ -4234,7 +4061,7 @@ export default function App() {
                         const url = URL.createObjectURL(blob);
                         const link = document.createElement("a");
                         link.setAttribute("href", url);
-                        link.setAttribute("download", `PSGroup_Meeting_Reservations_Export_${new Date().toISOString().split("T")[0]}.csv`);
+                        link.setAttribute("download", `${(org?.name || "Meeting").replace(/[^A-Za-z0-9]+/g, "_")}_Reservations_Export_${new Date().toISOString().split("T")[0]}.csv`);
                         document.body.appendChild(link);
                         link.click();
                         document.body.removeChild(link);
@@ -4708,9 +4535,7 @@ export default function App() {
                       <tbody className="divide-y divide-slate-100">
                         {adminUsers.map((u) => {
                           let displayDept = u.department || "General";
-                          if (u.email?.toLowerCase().includes("supratik@psgroup.in")) {
-                            displayDept = "Secretarial";
-                          } else if (displayDept.toLowerCase() === "secreterial") {
+                          if (displayDept.toLowerCase() === "secreterial") {
                             displayDept = "Secretarial";
                           }
 
@@ -5023,7 +4848,12 @@ export default function App() {
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-800">
-                If no rooms are available, please contact <a href="mailto:priyobroto@psgroup.in" className="text-blue-600 hover:text-blue-800 font-bold underline transition-colors">priyobroto@psgroup.in</a>
+                If no rooms are available, please contact{" "}
+                {orgContactEmail ? (
+                  <a href={`mailto:${orgContactEmail}`} className="text-blue-600 hover:text-blue-800 font-bold underline transition-colors">{orgContactEmail}</a>
+                ) : (
+                  "your office administrator"
+                )}
               </p>
               <p className="text-[11px] text-slate-500 mt-0.5">
                 Our facilities team will assist you with urgent scheduling, special room arrangements, or alternative meeting spaces.
@@ -5031,7 +4861,7 @@ export default function App() {
             </div>
           </div>
         </div>
-        <p>© 2026 PS Group Realty Pvt. Ltd. All Rights Reserved.</p>
+        <p>© {new Date().getFullYear()} {org?.name || APP_NAME}. Powered by {APP_NAME}.</p>
       </footer>
 
       {/* ==================== USER READ-ONLY PROFILE MODAL ==================== */}
@@ -5096,15 +4926,17 @@ export default function App() {
                     <span>Read-Only Profile Notice</span>
                   </div>
                   <p className="text-amber-800 leading-relaxed">
-                    User profile details are read-only and maintained by IT & Admin. If you need any profile updates or have any requests, please send an email to admin@psgroup.in.
+                    Profile details are maintained by your organisation's admins.{orgContactEmail ? ` For changes, email ${orgContactEmail}.` : ""}
                   </p>
-                  <a
-                    href="mailto:admin@psgroup.in?subject=Profile%20Update%20Request"
-                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition-colors mt-1"
-                  >
-                    <Mail className="w-3.5 h-3.5" />
-                    <span>Send Mail to admin@psgroup.in</span>
-                  </a>
+                  {orgContactEmail && (
+                    <a
+                      href={`mailto:${orgContactEmail}?subject=Profile%20Update%20Request`}
+                      className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition-colors mt-1"
+                    >
+                      <Mail className="w-3.5 h-3.5" />
+                      <span>Email {orgContactEmail}</span>
+                    </a>
+                  )}
                 </div>
 
                 <div className="flex justify-end pt-2 border-t border-slate-100">
@@ -5250,109 +5082,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* ==================== SECURE ADMIN LOGIN MODAL ==================== */}
-      <AnimatePresence>
-        {showAdminLoginModal && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-2xl shadow-xl max-w-sm w-full border border-slate-200 overflow-hidden"
-            >
-              <div className="bg-slate-900 px-6 py-4 text-white flex justify-between items-center">
-                <h3 className="font-display font-semibold text-base flex items-center">
-                  <Shield className="w-4 h-4 mr-2 text-blue-500 animate-pulse" />
-                  Secure Admin Sign In
-                </h3>
-                <button
-                  id="close-admin-login-modal-btn"
-                  onClick={() => setShowAdminLoginModal(false)}
-                  className="text-slate-400 hover:text-white transition-colors cursor-pointer"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <form onSubmit={handleAdminLogin} className="p-6 space-y-4 text-sm">
-                {loginError && (
-                  <div className="p-3 bg-red-50 text-red-700 border border-red-100 rounded-lg text-xs font-semibold flex items-center">
-                    <AlertTriangle className="w-4 h-4 mr-1.5 shrink-0" />
-                    {loginError}
-                  </div>
-                )}
-
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-2">
-                  <p className="font-semibold text-slate-700">Concurrent Admin Role Sign-In:</p>
-                  <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-                    <button
-                      type="button"
-                      onClick={() => { setLoginEmail("admin-reception"); setLoginPassword("QW!@12"); }}
-                      className="px-2 py-1 bg-white border border-slate-200 rounded text-left hover:border-blue-500 font-medium cursor-pointer"
-                    >
-                      🏢 Receptionist
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setLoginEmail("admin-hospitality"); setLoginPassword("QW!@12"); }}
-                      className="px-2 py-1 bg-white border border-slate-200 rounded text-left hover:border-blue-500 font-medium cursor-pointer"
-                    >
-                      ☕ Hospitality Dept
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setLoginEmail("admin-it"); setLoginPassword("QW!@12"); }}
-                      className="px-2 py-1 bg-white border border-slate-200 rounded text-left hover:border-blue-500 font-medium cursor-pointer"
-                    >
-                      💻 IT Dept
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setLoginEmail("admin"); setLoginPassword("QW!@12"); }}
-                      className="px-2 py-1 bg-white border border-slate-200 rounded text-left hover:border-blue-500 font-medium cursor-pointer"
-                    >
-                      🛡️ General Admin
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label htmlFor="admin-id-input" className="block text-xs font-semibold text-slate-700 uppercase">Admin Username / ID</label>
-                  <input
-                    id="admin-id-input"
-                    type="text"
-                    required
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 focus:bg-white transition-all text-slate-950 font-mono text-xs"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label htmlFor="admin-password-input" className="block text-xs font-semibold text-slate-700 uppercase">Password</label>
-                  <input
-                    id="admin-password-input"
-                    type="password"
-                    required
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 focus:bg-white transition-all text-slate-950"
-                  />
-                </div>
-
-                <button
-                  id="admin-login-submit-btn"
-                  type="submit"
-                  disabled={loginLoading}
-                  className="w-full mt-4 py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs shadow-md transition-colors flex justify-center items-center cursor-pointer disabled:opacity-55"
-                >
-                  {loginLoading ? "Authenticating Securely..." : "Verify & Authenticate"}
-                </button>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Cancellation Confirmation Modal */}
       <AnimatePresence>
@@ -5494,12 +5223,12 @@ export default function App() {
                   <div className="pt-2 border-t border-slate-200 flex flex-wrap gap-2">
                     {confirmedModalData.itSupportRequired && (
                       <span className="px-2 py-0.5 bg-purple-100 text-purple-700 font-semibold rounded text-[11px]">
-                        ✓ IT Support Dispatched (it@psgroup.in)
+                        ✓ IT team notified{org?.notifications?.itEmail ? ` (${org.notifications.itEmail})` : ""}
                       </span>
                     )}
                     {confirmedModalData.fbRequired && (
                       <span className="px-2 py-0.5 bg-amber-100 text-amber-800 font-semibold rounded text-[11px]">
-                        ✓ F&B Hospitality Dispatched (hospitality@psgroup.in)
+                        ✓ Hospitality team notified{org?.notifications?.hospitalityEmail ? ` (${org.notifications.hospitalityEmail})` : ""}
                       </span>
                     )}
                   </div>
