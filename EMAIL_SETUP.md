@@ -1,39 +1,33 @@
-# Email delivery on Vercel
+# Email & calendar invites
 
-Booking emails go out through three Vercel Serverless Functions in `api/`. They share their code with `server.ts` through `lib/mailer.ts`.
+All booking emails are sent by the server (`lib/server/mail.ts`) when the API creates or cancels a booking.
+There are no public "send email" endpoints any more.
 
-| Endpoint | Sends to |
+| Event | Recipients | Calendar |
+|---|---|---|
+| Booking created | Booker + participants | Meeting request (METHOD:REQUEST) — Outlook/Gmail add it to the calendar |
+| Booking cancelled | Booker + participants (+ IT / hospitality if they were notified) | Cancellation (METHOD:CANCEL) — removes it from calendars |
+| IT support requested | The organisation's **IT / AV team email** (Organisation → General) | – |
+| F&B requested | The organisation's **Hospitality email** | – |
+| Admin asks for feedback | Booker | – |
+
+Every email carries the customer organisation's name (and logo, if set). The sender shows as
+"`<Organisation> via <APP_NAME>`" from the `MAIL_FROM` address, and replies go to the booker.
+Each send is logged per organisation (Admin Control → notification logs).
+
+## Settings (Vercel → Environment Variables)
+
+| Variable | Value |
 |---|---|
-| `POST /api/send-email` | Booker + internal participants, as an Outlook meeting invite (added to their calendars) |
-| `POST /api/notify-it-helpdesk` | `IT_HELPDESK_EMAIL` (default it@psgroup.in) |
-| `POST /api/notify-hospitality` | `HOSPITALITY_EMAIL` (default hospitality@psgroup.in) |
-| `POST /api/bookings/:id/cancel` | Everyone who got the invite: a calendar cancellation that removes the meeting |
+| `RESEND_API_KEY` | API key from resend.com |
+| `MAIL_FROM` | e.g. `Meeting Rooms <meetings@yourdomain.com>` — must be on a domain verified in Resend. (`RESEND_FROM_EMAIL` is still read if `MAIL_FROM` is missing.) |
+| `APP_NAME` | Product name used in the sender name and footer |
+| `APP_URL` | Public URL, used for links in emails |
 
-Calendar emails go out through Resend's SMTP relay (`smtp.resend.com`, same API key). This lets the
-invite be embedded as a real meeting request (`text/calendar; method=REQUEST`), so Outlook shows
-Accept / Decline and adds the meeting to the calendar automatically. No `.ics` download needed.
+Until `MAIL_FROM` is on a verified domain (anything `@resend.dev` counts as unverified), emails are **not sent**;
+they're only recorded in the notification log with status `logged_only`. Bookings still work.
 
-## One-time setup
+## Verifying the sending domain
 
-1. **Verify the sending domain in Resend** (resend.com → Domains → Add domain → `psgroup.in`, or a subdomain such as `mail.psgroup.in`).
-   Add the DNS records Resend shows, then wait until the domain shows **Verified**.
-   Until this is done, Resend only delivers to the Resend account owner's own address. The app then sends every email to that one inbox, with "[Resend Sandbox -> …]" in the subject.
-2. **Set environment variables** in Vercel → Project → Settings → Environment Variables:
-
-   | Name | Value | Required |
-   |---|---|---|
-   | `RESEND_API_KEY` | `re_…` | yes |
-   | `RESEND_FROM_EMAIL` | `PS Group Meeting Portal <meetings@psgroup.in>`. Must be on the verified domain, **not** `onboarding@resend.dev` | yes |
-   | `ALLOWED_RECIPIENT_DOMAINS` | `psgroup.in` (comma-separated) | no |
-   | `ALLOWED_ORIGINS` | `https://psg-meeting.vercel.app` (add any custom domain) | no |
-   | `IT_HELPDESK_EMAIL` / `HOSPITALITY_EMAIL` | override the default recipients | no |
-   | `RESEND_TEST_EMAIL` | inbox used while still in sandbox mode | no |
-   | `CALENDAR_ORGANIZER_EMAIL` | mailbox shown as meeting organizer (defaults to the `RESEND_FROM_EMAIL` address) | no |
-3. **Create the organizer mailbox.** In Microsoft 365, create `meetings@psgroup.in` as a shared mailbox (free).
-   Accept / Decline replies go to it, so without it attendees get bounce messages when they respond.
-4. **Redeploy.**
-
-## Troubleshooting
-- Vercel → Logs, filtered on `/api/send-email`, shows the provider error if a send fails.
-- Resend → Emails shows every accepted message and its delivery status.
-- If messages reach Microsoft 365 but land in Quarantine or Junk, ask IT to allow-list the sender domain.
+In Resend → Domains, add the domain and copy the DKIM (TXT), SPF (MX + TXT) records it shows into your DNS
+provider. Don't add an inbound MX record on the root domain — it would redirect your company's mail.
