@@ -20,7 +20,14 @@ export function productionDeps(): ApiDeps {
     appUrl,
     sendMail: createMailer({
       apiKey: process.env.RESEND_API_KEY,
-      from: process.env.MAIL_FROM || process.env.RESEND_FROM_EMAIL,
+      smtp: {
+        host: process.env.SMTP_HOST,
+        port: process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined,
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+      // With Gmail the sender must be the Gmail account itself, so the old Resend sender is ignored.
+      from: process.env.MAIL_FROM || (process.env.SMTP_USER ? undefined : process.env.RESEND_FROM_EMAIL),
       appName: process.env.APP_NAME || "Meeting Room Booking",
       appUrl,
     }),

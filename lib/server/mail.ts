@@ -198,8 +198,14 @@ export function contentFor(m: MailRequest, appUrl: string): EmailContent {
 // ---------------------------------------------------------------- sender
 
 export interface MailerConfig {
+  /** Resend API key (sending from a domain verified in Resend). */
   apiKey?: string;
-  /** e.g. "Meeting Rooms <meetings@yourdomain.com>" — must be on a domain verified in Resend. */
+  /**
+   * Any SMTP server, e.g. a personal Gmail account: host smtp.gmail.com, user you@gmail.com,
+   * pass = a Google "app password". Takes precedence over Resend when user and pass are set.
+   */
+  smtp?: { host?: string; port?: number; user?: string; pass?: string };
+  /** e.g. "Meeting Rooms <meetings@yourdomain.com>". With Gmail it defaults to the Gmail address. */
   from?: string;
   appName?: string;
   appUrl?: string;
@@ -213,15 +219,26 @@ function parseFrom(from: string) {
 
 export function createMailer(cfg: MailerConfig) {
   const appName = cfg.appName || "Meeting Room Booking";
-  const from = cfg.from ? parseFrom(cfg.from) : null;
-  const ready = !!(cfg.transport || cfg.apiKey) && !!from?.email && !/resend\.dev$/i.test(from.email);
-  const transport = cfg.transport || (ready ? nodemailer.createTransport({
-    host: "smtp.resend.com", port: 465, secure: true, auth: { user: "resend", pass: cfg.apiKey as string },
-  }) : null);
+  const smtp = cfg.smtp?.user && cfg.smtp?.pass ? cfg.smtp : null;
+  const from = cfg.from ? parseFrom(cfg.from) : smtp ? { name: appName, email: smtp.user as string } : null;
+  const ready = !!(cfg.transport || smtp || cfg.apiKey) && !!from?.email && !/resend\.dev$/i.test(from.email);
+  let transport = cfg.transport || null;
+  if (!transport && ready && smtp) {
+    const port = Number(smtp.port || 465);
+    transport = nodemailer.createTransport({
+      host: smtp.host || "smtp.gmail.com", port, secure: port === 465,
+      // Google shows app passwords in groups of four ("abcd efgh ..."); spaces are not part of it.
+      auth: { user: smtp.user, pass: String(smtp.pass).replace(/\s+/g, "") },
+    });
+  } else if (!transport && ready) {
+    transport = nodemailer.createTransport({
+      host: "smtp.resend.com", port: 465, secure: true, auth: { user: "resend", pass: cfg.apiKey as string },
+    });
+  }
 
   return async function sendMail(m: MailRequest): Promise<{ status: string; message: string }> {
     if (!ready || !transport || !from) {
-      return { status: "logged_only", message: "E-mail is not configured (set RESEND_API_KEY and MAIL_FROM on a verified domain)." };
+      return { status: "logged_only", message: "E-mail is not configured (set SMTP_USER and SMTP_PASS, or RESEND_API_KEY and MAIL_FROM)." };
     }
     const content = contentFor(m, cfg.appUrl || "");
     const { html, text } = renderEmail(m.org, content, appName);
