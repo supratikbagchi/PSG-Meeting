@@ -259,3 +259,15 @@ test("mailer stays silent without a verified sender and attaches invites when co
   assert.equal(sent[0].from.name, "Acme via Meeting Room Booking");
   assert.match(sent[0].html, /Acme/);
 });
+
+test("SMTP (Gmail) settings make the mailer ready and default the sender to the account", async () => {
+  const org: any = { orgId: "o1", name: "Acme", timezone: "Asia/Kolkata", notifications: {} };
+  const m: MailRequest = { kind: "it-request", org, to: ["it@acme.in"], roomName: "Board", booking: { bookingId: "b1", date: "2026-11-02", startTime: "11:00", duration: 30 } };
+  assert.equal((await createMailer({ smtp: { user: "me@gmail.com" } })(m)).status, "logged_only"); // no password
+  const sent: any[] = [];
+  const send = createMailer({ smtp: { user: "me@gmail.com", pass: "abcd efgh ijkl mnop" }, appName: "RoomDesk",
+    transport: { sendMail: async (x) => { sent.push(x); return { messageId: "1" }; } } });
+  assert.equal((await send(m)).status, "success");
+  assert.equal(sent[0].from.address, "me@gmail.com");
+  assert.equal(sent[0].from.name, "Acme via RoomDesk");
+});
